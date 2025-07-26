@@ -335,7 +335,7 @@ sub quoteparam {
 	my($self, $message) = @_;
 	$message =~ s/'/ ' /g;
 	$message =~ s/"/ '' /g;
-	if (($self->{game_engine} != 2 || $self->{mod} eq "SOURCEMOD") && $self->{mod} ne "MANI" && $self->{mod} ne "CSS") {
+	if (($self->{game_engine} != 2 || $self->{mod} eq "SOURCEMOD") && $self->{mod} ne "MANI") {
 		return "\"".$message."\"";
 	}
 	return $message;
@@ -1186,7 +1186,7 @@ sub flushDB
 			serverId=?
 	";
 	my @vals = (
-		$self->{name},
+		&::quoteSQL($self->{name}),
 		$self->{rounds},
 		$self->{kills},
 		$self->{suicides},
