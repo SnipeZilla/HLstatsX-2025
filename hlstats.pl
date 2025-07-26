@@ -2574,7 +2574,7 @@ sub handleIncoming {
 				$ev_type = 1;
 				
 				if ($playerinfo) {
-					if (($playerinfo->{"uniqueid"} =~ /UNKNOWN/) || ($playerinfo->{"uniqueid"} =~ /PENDING/) || ($playerinfo->{"uniqueid"} =~ /VALVE_ID_LAN/)) {
+					if (($playerinfo->{"uniqueid"} =~ /UNKNOWN/) || ($playerinfo->{"uniqueid"} =~ /PENDING/) || ($playerinfo->{"uniqueid"} =~ /VALVE_ID_LAN/) || (length $playerinfo->{"name"} == 0) ) {
 						$ev_status = "(DELAYING CONNECTION): $s_output";
 	
 	                    if ($g_mode ne "LAN")  {
@@ -3340,7 +3340,7 @@ sub handleData
         } 
 
         while (my ($table) = each(%g_eventtable_data)) {
-            if (defined($g_eventtable_data{$table}{lastflush}) && $g_eventtable_data{$table}{lastflush} + 30 < $ev_daemontime) {
+            if ($g_eventtable_data{$table}{lastflush} + 30 < $ev_daemontime) {
                 flushEventTable($table);
             }
         }
