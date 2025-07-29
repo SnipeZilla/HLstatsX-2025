@@ -1673,8 +1673,8 @@ sub handleIncoming {
 			($s_peerhost, $s_peerport) = split(/:/, $s_addr);
 		}
 
-		$proxy_s_peerhost = $s_socket->peerhost;
-		$proxy_s_peerport  = $s_socket->peerport;
+		$proxy_s_peerhost = $s_peerhost;
+		$proxy_s_peerport  = $s_peerport;
 		&printEvent("PROXY", "Detected proxy call from $proxy_s_peerhost:$proxy_s_peerport") if ($d_debug > 2);
 
 		if ($proxy_key eq $rproxy_key) {
