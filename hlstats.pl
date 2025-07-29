@@ -1664,6 +1664,7 @@ sub getLine
 sub handleIncoming {
     my ($source, $s_output) = @_;
     return unless defined $s_output && $s_output ne "";
+
     # Proxy filter
 	if (($s_output =~ /^.*PROXY Key=(.+) (.*)PROXY.+/) && $proxy_key ne "") {
 		$rproxy_key = $1;
@@ -1725,12 +1726,18 @@ sub handleIncoming {
 			if ($data[1] eq "RELOAD") {
 				&printEvent("CONTROL", "Re-Reading Configuration by request from Frontend...", 1);
 				&reloadConfiguration;
+                my $dest = sockaddr_in($port, inet_aton($address));
+                $msg="Re-Reading Configuration by request from Frontend...OK";
+                send($::udp_socket, $msg, 0, $dest); #reply to front end          
 			} 
 
 			if ($data[1] eq "KILL") {
 				&printEvent("CONTROL", "SHUTTING DOWN SCRIPT", 1);
 				&flushAll;
-				die "Exit script by request";
+                my $dest = sockaddr_in($port, inet_aton($address));
+                $msg="Shutting down HLstatsX Daemon...Goodbye...";
+                send($::udp_socket, $msg, 0, $dest); #reply to front end       
+                exit(0);
 			} 
 			
 			return;
@@ -3761,7 +3768,7 @@ if ($g_stdin == 0) {
     $httpPulse = 120;
     $timeout   = 0;
     # init UDP
-    my $udp_socket = IO::Socket::INET->new(
+    $udp_socket = IO::Socket::INET->new(
         Proto     => "udp",
         LocalAddr => "",
         LocalPort => $s_port
