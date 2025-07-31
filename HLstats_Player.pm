@@ -960,6 +960,7 @@ sub geoLookup
 		
 		if ($::g_geoip_binary > 0) {
 			if(!defined($::g_gi)) {
+
 				return;
 			}
 			
@@ -1021,19 +1022,6 @@ sub geoLookup
 		if ($found > 0) {
 			&::execNonQuery("
 				UPDATE
-					hlstats_Players
-				SET
-					city='".&::quoteSQL($self->{city})."',
-					`state`='".&::quoteSQL($self->{state})."',
-					country='".&::quoteSQL($self->{country})."',
-					flag='".&::quoteSQL($self->{flag})."',
-					lat=".((defined($self->{lat}))?$self->{lat}:"NULL").",
-					lng=".((defined($self->{lng}))?$self->{lng}:"NULL")."
-				WHERE
-					playerId = ".$self->{playerid}
-			);
-			&::execNonQuery("
-				UPDATE
 					hlstats_Livestats
 				SET
 					cli_city='".&::quoteSQL($self->{city})."',
@@ -1044,6 +1032,19 @@ sub geoLookup
 					cli_lng=".((defined($self->{lng}))?$self->{lng}:"NULL")."
 				WHERE
 					player_id =".$self->{playerid}
+			);
+			&::execNonQuery("
+				UPDATE
+					hlstats_Players
+				SET
+					city='".&::quoteSQL($self->{city})."',
+					state='".&::quoteSQL($self->{state})."',
+					country='".&::quoteSQL($self->{country})."',
+					flag='".&::quoteSQL($self->{flag})."',
+					lat=".((defined($self->{lat}))?$self->{lat}:"NULL").",
+					lng=".((defined($self->{lng}))?$self->{lng}:"NULL")."
+				WHERE
+					playerId = ".$self->{playerid}
 			);
 		}
 	}

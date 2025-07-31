@@ -186,7 +186,6 @@ sub doQuery
 
 	my $result = $db_conn->prepare($query) or die("Unable to prepare query:\n$query\n$DBI::errstr\n$callref");
 	$result->execute or die("Unable to execute query:\n$query\n$DBI::errstr\n$callref");
-	
 	return $result;
 }
 
@@ -197,7 +196,7 @@ sub execNonQuery
 		&printEvent("HLSTATSX", "Lost database connection. Trying to reconnect...", 1);
 		&doConnect();
 	}
-	#&printEvent("DEBUG","execNonQuery:\n".$query);
+	#&printEvent("DEBUG","execNonQuery:\n".$query,2);
 	$db_conn->do($query);
 }
 

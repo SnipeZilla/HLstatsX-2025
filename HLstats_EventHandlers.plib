@@ -420,12 +420,12 @@ sub doEvent_Connect
 {	
 	my ($playerId, $playerUniqueId, $ipAddr) = @_;
 
-	my $desc="";
+	my $desc=" ";
 	my $player            = lookupPlayer($s_addr, $playerId, $playerUniqueId);
 	my $playerstr         = &getPlayerInfoString($player, $playerId);
     my $min_players_rank  = $g_servers{$s_addr}->{min_players_rank};
-	my $hostname;
-	my $hostgroup;
+	my $hostname=" ";
+	my $hostgroup=" ";
 	
 	if ($player)
 	{
