@@ -1099,16 +1099,15 @@ sub getPlayerInfoString
 sub getPlayerInfo
 {
     my ($player, $create_player, $ipAddr) = @_;
-    #if ( !defined($ipAddr) ) { $ipAddr = ""; }
     if ($player =~ /^(.*?)<(\d+)><([^<>]*)><([^<>]*)>(?:<([^<>]*)>)?.*$/) {
         my $name        = $1;
-        my $userid        = $2;
+        my $userid      = $2;
         my $uniqueid    = $3;
         my $team        = $4;
         my $role        = $5||"";
-        my $bot            = 0;
+        my $bot         = 0;
         my $haveplayer  = 0;
-        
+
         $plainuniqueid = $uniqueid;
         $uniqueid =~ s!\[U:1:(\d+)\]!'STEAM_0:'.($1 % 2).':'.int($1 / 2)!eg;
         $uniqueid =~ s/^STEAM_[0-9]+?\://;
@@ -1257,7 +1256,6 @@ sub getPlayerInfo
                     $haveplayer = 1;
                     # Catch players reconnecting without first disconnecting
                     if ($player->{userid} != $userid) {
-                    
                         &doEvent_Disconnect(
                             $player->{"userid"},
                             $uniqueid,
@@ -2557,13 +2555,13 @@ sub handleIncoming {
             if ($ev_player =~ /^(.+(<.+>))".*(disconnected).*$/) {
                 $ev_verb = "";
                 my $playerinfo = &getPlayerInfo($ev_player, 0);
-
+            
                 if ($playerinfo) {
                     $ev_type = 3;
 
                     $userid   = $playerinfo->{userid};
                     $uniqueid = $playerinfo->{uniqueid};
-
+            
                     $ev_status = &doEvent_Disconnect(
                         $playerinfo->{userid},
                         $playerinfo->{uniqueid},
@@ -2583,7 +2581,7 @@ sub handleIncoming {
                 $ev_type = 1;
 
                 if ($playerinfo) {
-                    if (($playerinfo->{"uniqueid"} =~ /UNKNOWN/) || ($playerinfo->{"uniqueid"} =~ /PENDING/) || ($playerinfo->{"uniqueid"} =~ /VALVE_ID_LAN/) || (length $playerinfo->{"name"} == 0) ) {
+                    if ( ($playerinfo->{"uniqueid"} =~ /UNKNOWN/) || ($playerinfo->{"uniqueid"} =~ /PENDING/) || ($playerinfo->{"uniqueid"} =~ /VALVE_ID_LAN/) ) {
                         $ev_status = "(DELAYING CONNECTION): $s_output";
 
                         if ($g_mode ne "LAN")  {
@@ -2773,7 +2771,7 @@ sub handleIncoming {
                         $ev_properties
                     );
                 }
-            } elsif (like($ev_verb, "STEAM USERID validated") || like($ev_verb, "VALVE USERID validated")) {               
+            } elsif ( (like($ev_verb, "STEAM USERID validated") || like($ev_verb, "VALVE USERID validated")) && $g_servers{$s_addr}->{play_game} != CS2() )  {               
  
                 my $isCSGO = ($g_servers{$s_addr}->{play_game} == CSGO());
                 my $playerinfo = &getPlayerInfo($ev_player, $isCSGO ? 1 : 0);

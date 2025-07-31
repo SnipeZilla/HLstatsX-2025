@@ -196,7 +196,7 @@ sub execNonQuery
 		&printEvent("HLSTATSX", "Lost database connection. Trying to reconnect...", 1);
 		&doConnect();
 	}
-	#&printEvent("DEBUG","execNonQuery:\n".$query,2);
+	#&printEvent("DEBUG","execNonQuery:\n".$query,1);
 	$db_conn->do($query);
 }
 

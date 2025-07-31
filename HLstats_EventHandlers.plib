@@ -615,7 +615,7 @@ sub doEvent_Disconnect
 	
 	if ($player)
 	{
-		if (($g_servers{$s_addr}->{ignore_bots} == 1) && (($player->{is_bot} == 1) || ($pUserId < 1 || $g_servers{$s_addr}->{play_game} == CS2())))
+		if (($g_servers{$s_addr}->{ignore_bots} == 1) && (($player->{is_bot} == 1) || ($pUserId < 1)))
 		{
 			$player->updateDB();
 			removePlayer($s_addr, $pUserId, $playerUniqueId);
