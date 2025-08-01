@@ -555,27 +555,38 @@ sub track_server_load_async {
         my ($err, $data);
         eval {
             my $new_timestamp = time();
-            my $string = $self->dorcon("stats");
 
-            if ($string eq "" || $string == -1) {
+            my $string = $self->{play_game} == CS2()? $self->dorcon("status_json") : $self->dorcon("stats");
+
+            if ($string eq "" || length($string) < 3) {
                 $self->set("track_server_timestamp", $new_timestamp);
                 $err = "[track_server_load] No RCON response from " . $self->{address};
                 return $queue->enqueue([$err, undef]);
             }
 
-            $string =~ /CPU.*\n(.*)\n*L{0,1}.*\Z/;
-            $string = $1;
+            if ( $self->{play_game} == CS2() ) {
 
-            $string =~ /([^ ]+)\s+([^ ]+)\s+([^ ]+)\s+([^ ]+)\s+([^ ]+)\s+([^ ]+)\s+([^ ]+)\s*([^ ]*)/;
-            my $uptime = $4;
-            my $fps = $6;
+               my $fps = ($string =~ /"frametime_ms": ([\d.]+)/) ? sprintf("%.2f", 1000 / $1) : '0.00';
+               my ($uptime) = $string =~ /"process_uptime": ([\d]+)/;
+               my ($map)    = $string =~ /"map": "([^"]+)"/;
+
+            } else {
+
+                $string =~ /CPU.*\n(.*)\n*L{0,1}.*\Z/;
+                $string = $1;
+                $string =~ /([^ ]+)\s+([^ ]+)\s+([^ ]+)\s+([^ ]+)\s+([^ ]+)\s+([^ ]+)\s+([^ ]+)\s*([^ ]*)/;
+                my $uptime = $4;
+                my $fps = $6;
+                my $map = $self->{map};
+
+            }
 
             $data = {
                 timestamp     => $new_timestamp,
                 act_players   => $self->{num_players_load},
                 min_players   => $self->{minplayers},
                 max_players   => $self->{maxplayers},
-                map           => $self->{map},
+                map           => $map,
                 uptime        => $uptime || 0,
                 fps           => $fps || 0,
                 server_id     => $self->{id},

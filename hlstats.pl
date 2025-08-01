@@ -1704,6 +1704,7 @@ sub handleIncoming {
         }
 
         # Inject into HLstatsX
+        &printEvent($source, $s_output, 2);
         my ($address, $port);
         my @data = split ";", $s_output;
         $cmd = $data[0];
@@ -3255,7 +3256,7 @@ sub handleData
                     $g_servers{$server}->track_server_load_async(sub {
                         my ($err, $data) = @_;
                         if ($err) {
-                            warn "[track_server_load_async] $err" if $g_debug > 0;
+                            warn "[track_server_load_async] $err" if $err && $g_debug > 0;
                             return;
                         }
                     
