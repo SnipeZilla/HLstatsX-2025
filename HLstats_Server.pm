@@ -559,7 +559,7 @@ sub track_server_load_async {
 
             if ($string eq "" || $string == -1) {
                 $self->set("track_server_timestamp", $new_timestamp);
-                $err="[track_server_load] No RCON response from " . $self->{address};
+                $err = "[track_server_load] No RCON response from " . $self->{address};
                 return $queue->enqueue([$err, undef]);
             }
 
