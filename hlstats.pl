@@ -1704,7 +1704,6 @@ sub handleIncoming {
         }
 
         # Inject into HLstatsX
-        &printEvent($source, $s_output, 2);
         my ($address, $port);
         my @data = split ";", $s_output;
         $cmd = $data[0];
