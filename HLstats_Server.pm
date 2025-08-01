@@ -557,9 +557,10 @@ sub track_server_load_async {
             my $new_timestamp = time();
             my $string = $self->dorcon("stats");
 
-            if ($string eq "") {
+            if ($string eq "" || $string == -1) {
                 $self->set("track_server_timestamp", $new_timestamp);
-                warn "[track_server_load] No RCON response from " . $self->{address};
+                $err="[track_server_load] No RCON response from " . $self->{address};
+                return $queue->enqueue([$err, undef]);
             }
 
             $string =~ /CPU.*\n(.*)\n*L{0,1}.*\Z/;

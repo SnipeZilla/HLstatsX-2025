@@ -226,7 +226,7 @@ sub recieve_rcon
     if(IO::Select->new($r_socket)->can_read($TIMEOUT)) {  # $TIMEOUT seconds timeout
       $r_socket->recv($tmp, 1500);
       $size    = unpack("V",  substr($tmp, 0, 4));
-	  if ( $size == 0 ) {
+	  if ( ($size // 0) == 0 ) {
 		$self->{"refresh_socket_counter"} = 0;
 		return (-1, -1, -1);
 	  }
