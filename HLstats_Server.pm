@@ -558,7 +558,7 @@ sub track_server_load_async {
 
             my $string = $self->{play_game} == CS2()? $self->dorcon("status_json") : $self->dorcon("stats");
 
-            if ($string eq "" || length($string) < 3) {
+            if ($string eq "") {
                 $self->set("track_server_timestamp", $new_timestamp);
                 $err = "[track_server_load] No RCON response from " . $self->{address};
                 return $queue->enqueue([$err, undef]);
