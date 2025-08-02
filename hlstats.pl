@@ -3755,7 +3755,7 @@ if ($g_stdin) {
 }
 
 # Cleaner!
-&doQuery("TRUNCATE TABLE hlstats_livestats");
+&doQuery("TRUNCATE TABLE hlstats_Livestats");
 
 # Loop start, nothing will be read after; but sub
 if ($g_stdin == 0) {

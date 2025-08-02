@@ -441,7 +441,7 @@ sub insertPlayerLivestats
 	my ($self) = @_;
 	my $query = "
 		REPLACE INTO
-			hlstats_livestats
+			hlstats_Livestats
 			(
 				player_id,
 				server_id,
@@ -808,7 +808,7 @@ sub flushDB
 		# Update live stats
 		my $query = "
 			UPDATE
-				hlstats_livestats
+				hlstats_Livestats
 			SET
 				cli_address=?,
 				steam_id=?,
@@ -877,7 +877,7 @@ sub deleteLivestats
 	my ($self) = @_;
 
 	# delete live stats
-	my $query = "DELETE FROM hlstats_livestats WHERE player_id=".$self->{playerid};
+	my $query = "DELETE FROM hlstats_Livestats WHERE player_id=".$self->{playerid};
 	&::execNonQuery($query);
 }
 
@@ -1022,7 +1022,7 @@ sub geoLookup
 		if ($found > 0) {
 			&::execNonQuery("
 				UPDATE
-					hlstats_livestats
+					hlstats_Livestats
 				SET
 					cli_city='".&::quoteSQL($self->{city})."',
 					cli_country='".&::quoteSQL($self->{country})."',
