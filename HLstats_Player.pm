@@ -180,7 +180,7 @@ sub set
 
 	if (defined($self->{$key}))
 	{
-		if ($no_updatetime == 0) {
+		if (!defined $no_updatetime || $no_updatetime == 0) {
 			$self->{timestamp} = $::ev_daemontime;
 		}
 		
@@ -441,7 +441,7 @@ sub insertPlayerLivestats
 	my ($self) = @_;
 	my $query = "
 		REPLACE INTO
-			hlstats_Livestats
+			hlstats_livestats
 			(
 				player_id,
 				server_id,
@@ -808,7 +808,7 @@ sub flushDB
 		# Update live stats
 		my $query = "
 			UPDATE
-				hlstats_Livestats
+				hlstats_livestats
 			SET
 				cli_address=?,
 				steam_id=?,
@@ -877,7 +877,7 @@ sub deleteLivestats
 	my ($self) = @_;
 
 	# delete live stats
-	my $query = "DELETE FROM hlstats_Livestats WHERE player_id=".$self->{playerid};
+	my $query = "DELETE FROM hlstats_livestats WHERE player_id=".$self->{playerid};
 	&::execNonQuery($query);
 }
 
@@ -908,7 +908,7 @@ sub getAddress
 		
 		&::printNotice("rcon_getaddress");
 		my $result = $::g_servers{$s_addr}->rcon_getaddress($self->{uniqueid});
-		if ($result->{Address} ne "") {
+		if (defined $result->{Address} && $result->{Address} ne "") {
 			$haveAddress = 1;
 			$self->{address}  = $result->{Address};
 			$self->{cli_port} = $result->{ClientPort};
@@ -1022,7 +1022,7 @@ sub geoLookup
 		if ($found > 0) {
 			&::execNonQuery("
 				UPDATE
-					hlstats_Livestats
+					hlstats_livestats
 				SET
 					cli_city='".&::quoteSQL($self->{city})."',
 					cli_country='".&::quoteSQL($self->{country})."',

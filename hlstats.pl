@@ -450,23 +450,24 @@ sub calcSkill
   
   my $victimSkillChange = $killerSkillChange;
 
-  if ($skill_mode == "1")
+if ( $skill_mode ) {
+  if ($skill_mode == 1)
   {
     $victimSkillChange = $killerSkillChange * 0.75;
   }
-  elsif ($skill_mode == "2")
+  elsif ($skill_mode == 2)
   {
     $victimSkillChange = $killerSkillChange * 0.5;
   }
-  elsif ($skill_mode == "3")
+  elsif ($skill_mode == 3)
   {
     $victimSkillChange = $killerSkillChange * 0.25;
   }
-  elsif ($skill_mode == "4")
+  elsif ($skill_mode == 4)
   {
     $victimSkillChange = 0;
   }
-  elsif ($skill_mode == "5")
+  elsif ($skill_mode == 5)
   {
     #Zombie Panic: Source only
     #Method suggested by heimer. Survivor's lose half of killer's gain when dying, but Zombie's only lose a quarter. 
@@ -479,7 +480,7 @@ sub calcSkill
       $victimSkillChange = $killerSkillChange * 0.25;
     }
   }
-  
+}
   if ($victimSkillChange > $g_skill_maxchange) {
     &printNotice("Capping victim skill change of $victimSkillChange to $g_skill_maxchange") if ($g_debug > 2);
     $victimSkillChange = $g_skill_maxchange;
@@ -498,7 +499,7 @@ sub calcSkill
   }
   if (($killerKills < $g_player_minkills ) || ($victimKills < $g_player_minkills )) {
     $killerSkillChange = $g_skill_minchange;
-    if ($skill_mode != 4) {
+    if (length $skill_mode && $skill_mode != 4) {
       $victimSkillChange = $g_skill_minchange;
     } else {
       $victimSkillChange = 0;
@@ -1100,7 +1101,7 @@ sub getPlayerInfo
 {
     my ($player, $create_player, $ipAddr) = @_;
     if ($player =~ /^(.*?)<(\d+)><([^<>]*)><([^<>]*)>(?:<([^<>]*)>)?.*$/) {
-        my $name        = $1;
+        my $name        = Encode::encode("utf8",$1);
         my $userid      = $2;
         my $uniqueid    = $3;
         my $team        = $4;
@@ -1178,7 +1179,7 @@ sub getPlayerInfo
             }
         }
     
-        if ($ipAddr eq "none") {
+        if (!defined $ipAddr || $ipAddr eq "none") {
             $ipAddr = "";
         }
         
@@ -1860,30 +1861,30 @@ sub handleIncoming {
                     &printEvent("SERVER", "Tracking server load is disabled", 1);
                 }
 
-                if ($s_cfg{"TKPenalty"} > 0) {
+                if (length $s_cfg{"TKPenalty"} && $s_cfg{"TKPenalty"} > 0) {
                     $g_servers{$s_addr}->set("tk_penalty", $s_cfg{"TKPenalty"});
                     &printEvent("SERVER", "Penalty team kills with ".$s_cfg{"TKPenalty"}." points", 1);
                 }
-                if ($s_cfg{"SuicidePenalty"} > 0) {
+                if (length $s_cfg{"SuicidePenalty"} && $s_cfg{"SuicidePenalty"} > 0) {
                     $g_servers{$s_addr}->set("suicide_penalty", $s_cfg{"SuicidePenalty"});
                     &printEvent("SERVER", "Penalty suicides with ".$s_cfg{"SuicidePenalty"}." points", 1);
                 }
-                if ($s_cfg{"BonusRoundTime"} > 0) {
+                if (length $s_cfg{"BonusRoundTime"} && $s_cfg{"BonusRoundTime"} > 0) {
                     $g_servers{$s_addr}->set("bonusroundtime", $s_cfg{"BonusRoundTime"});
                     &printEvent("SERVER", "Bonus Round time set to: ".$s_cfg{"BonusRoundTime"}, 1);
                 }
-                if ($s_cfg{"BonusRoundIgnore"} > 0) {
+                if (length $s_cfg{"BonusRoundIgnore"} && $s_cfg{"BonusRoundIgnore"} > 0) {
                     $g_servers{$s_addr}->set("bonusroundignore", $s_cfg{"BonusRoundIgnore"});
                     &printEvent("SERVER", "Bonus Round is being ignored. Length: (".$s_cfg{"BonusRoundTime"}.")", 1);
                 }
-                if ($s_cfg{"AutoTeamBalance"} > 0) {
+                if (length $s_cfg{"AutoTeamBalance"} && $s_cfg{"AutoTeamBalance"} > 0) {
                     $g_servers{$s_addr}->set("ba_enabled", "1");
                     &printEvent("TEAMS", "Auto-Team-Balancing is enabled", 1);
                 } else {
                     $g_servers{$s_addr}->set("ba_enabled", "0");
                     &printEvent("TEAMS", "Auto-Team-Balancing is disabled", 1);
                 }
-                if ($s_cfg{"AutoBanRetry"} > 0) {
+                if (length $s_cfg{"AutoBanRetry"} && $s_cfg{"AutoBanRetry"} > 0) {
                     $g_servers{$s_addr}->set("auto_ban", "1");
                     &printEvent("TEAMS", "Auto-Retry-Banning is enabled", 1);
                 } else {
@@ -1891,7 +1892,7 @@ sub handleIncoming {
                     &printEvent("TEAMS", "Auto-Retry-Banning is disabled", 1);
                 }
 
-                if ($s_cfg{"MinimumPlayersRank"} > 0) {
+                if (length $s_cfg{"MinimumPlayersRank"} && $s_cfg{"MinimumPlayersRank"} > 0) {
                     $g_servers{$s_addr}->set("min_players_rank", $s_cfg{"MinimumPlayersRank"});
                     &printEvent("SERVER", "Requires minimum players rank is enabled [MinPos:".$s_cfg{"MinimumPlayersRank"}."]", 1);
                 } else {
@@ -1899,7 +1900,7 @@ sub handleIncoming {
                     &printEvent("SERVER", "Requires minimum players rank is disabled", 1);
                 }
 
-                if ($s_cfg{"EnablePublicCommands"} > 0) {
+                if (length $s_cfg{"EnablePublicCommands"} && $s_cfg{"EnablePublicCommands"} > 0) {
                     $g_servers{$s_addr}->set("public_commands", $s_cfg{"EnablePublicCommands"});
                     &printEvent("SERVER", "Public chat commands are enabled", 1);
                 } else {
@@ -1916,7 +1917,7 @@ sub handleIncoming {
                     &printEvent("SERVER", "Admins: ".$s_cfg{"Admins"}, 1);
                 }
 
-                if ($s_cfg{"SwitchAdmins"} > 0) {
+                if (length $s_cfg{"SwitchAdmins"} && $s_cfg{"SwitchAdmins"} > 0) {
                     $g_servers{$s_addr}->set("switch_admins", "1");
                     &printEvent("TEAMS", "Switching Admins on Auto-Team-Balance is enabled", 1);
                 } else {
@@ -1924,7 +1925,7 @@ sub handleIncoming {
                     &printEvent("TEAMS", "Switching Admins on Auto-Team-Balance is disabled", 1);
                 }
 
-                if ($s_cfg{"IgnoreBots"} > 0) {
+                if (length $s_cfg{"IgnoreBots"} && $s_cfg{"IgnoreBots"} > 0) {
                     $g_servers{$s_addr}->set("ignore_bots", "1");
                     &printEvent("SERVER", "Ignoring bots is enabled", 1);
                 } else {
@@ -1934,7 +1935,7 @@ sub handleIncoming {
                 $g_servers{$s_addr}->set("skill_mode", $s_cfg{"SkillMode"});
                 &printEvent("SERVER", "Using skill mode ".$s_cfg{"SkillMode"}, 1);
                 
-                if ($s_cfg{"GameType"} == 1) {
+                if (length $s_cfg{"GameType"} && $s_cfg{"GameType"} == 1) {
                     $g_servers{$s_addr}->set("game_type", $s_cfg{"GameType"});
                     &printEvent("SERVER", "Game type: Counter-Strike: Source - Deathmatch", 1);
                 } else {
@@ -1947,14 +1948,14 @@ sub handleIncoming {
                 if ($s_cfg{"Mod"} ne "") {
                     &printEvent("SERVER", "Using plugin ".$s_cfg{"Mod"}." for internal functions!", 1);
                 }
-                if ($s_cfg{"ConnectAnnounce"} == 1) {
+                if (length $s_cfg{"ConnectAnnounce"} && $s_cfg{"ConnectAnnounce"} == 1) {
                     $g_servers{$s_addr}->set("connect_announce", $s_cfg{"ConnectAnnounce"});
                     &printEvent("SERVER", "Connect Announce is enabled", 1);
                 } else {
                     $g_servers{$s_addr}->set("connect_announce", "0");
                     &printEvent("SERVER", "Connect Announce is disabled", 1);
                 }
-                if ($s_cfg{"UpdateHostname"} == 1) {
+                if (length $s_cfg{"UpdateHostname"} && $s_cfg{"UpdateHostname"} == 1) {
                     $g_servers{$s_addr}->set("update_hostname", $s_cfg{"UpdateHostname"});
                     &printEvent("SERVER", "Auto-updating hostname is enabled", 1);
                 } else {
@@ -3344,7 +3345,7 @@ sub handleData
         } 
 
         while (my ($table) = each(%g_eventtable_data)) {
-            if ($g_eventtable_data{$table}{lastflush} + 30 < $ev_daemontime) {
+            if (defined $g_eventtable_data{$table}{lastflush} && $g_eventtable_data{$table}{lastflush} + 30 < $ev_daemontime) {
                 flushEventTable($table);
             }
         }

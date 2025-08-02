@@ -84,7 +84,7 @@ sub execute
   if ($::g_stdin == 0) {
       
     my $answer = $self->sendrecv($command, $splitted_answer);
-    if ($answer =~ /bad rcon_password/i) {
+    if (defined $answer && $answer =~ /bad rcon_password/i) {
       &::printEvent("TRCON", "Bad Password");
     }
     return $answer;
@@ -291,6 +291,18 @@ sub error
 #
 # Parse "status" command output into player information
 #
+sub find_steamid
+{
+    my ($self, $userid) = @_;
+    my $server = $self->{server_object}{srv_players} or return;
+    for my $player ( values %$server ) {
+        next unless defined $player->{userid};
+        if ($player->{userid} == $userid) {
+          return $player->{uniqueid};
+        }
+    }
+    return;
+}
 
 sub getPlayers
 {
@@ -313,78 +325,71 @@ sub getPlayers
 # userid name uniqueid connected ping loss state rate adr
 #  2 1 "psychonic" STEAM_1:1:4153990 00:45 68 1 active 20000 192.168.5.115:27006
 
-  foreach my $line (@lines)
-  {
-    if ($line =~ /^\#\s*
-                (\d+)\s+		# userid
-				(?:\d+\s+|)     # extra number in L4D, not sure what this is??
-                "(.+)"\s+		# name
-                (\S+)\s+		# uniqueid
-                ([\d:]+)\s+		# time
-                (\d+)\s+		# ping
-                (\d+)\s+		# loss
-                ([A-Za-z]+)\s+	# state
-				(?:\d+\s+|)		# rate (L4D only)
-                ([^:]+):    	# addr
-                (\S+)           # port
-                $/x)
+#cs2
+# userid connected ping loss state rate adr name
+# 7    04:32   24    0     active 786432 64.74.97.164:53449 'snipezilla'
+    my ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port);
+    foreach my $line (@lines)
     {
-      my $userid   = $1;
-      my $name     = $2;
-      my $uniqueid = $3;
-      my $time     = $4;
-      my $ping     = $5;
-      my $loss     = $6;
-      my $state    = $7;
-      my $address  = $8;
-      my $port     = $9;
+        if ($line =~ /^(?:\#\s*)?     # not for cs2
+                      (\d+)\s+        # userid
+                      (?:\d+\s+|)     # extra number in L4D, not sure what this is??
+                      "(.+)"\s+       # name
+                      (\S+)\s+        # uniqueid
+                      ([\d:]+)\s+     # time
+                      (\d+)\s+        # ping
+                      (\d+)\s+        # loss
+                      ([A-Za-z]+)\s+  # state
+                      (?:\d+\s+|)     # rate (L4D only)
+                      ([^:]+):        # addr
+                      (\S+)           # port
+                      $/x)
+        {
 
-     $uniqueid =~ s!\[U:1:(\d+)\]!($1 % 2).':'.int($1 / 2)!eg;
-     $uniqueid =~ s/^STEAM_[0-9]+?\://i;
-	  
-      # &::printEvent("DEBUG", "USERID: '$userid', NAME: '$name', UNIQUEID: '$uniqueid', TIME: '$time', PING: '$ping', LOSS: '$loss', STATE: '$state', ADDRESS:'$address', CLI_PORT: '$port'", 1);
+          ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+           $uniqueid =~ s!\[U:1:(\d+)\]!($1 % 2).':'.int($1 / 2)!eg;
+           $uniqueid =~ s/^STEAM_[0-9]+?\://i;
 
-      if ($::g_mode eq "NameTrack") {
-        $players{$name}    = { 
-                             "Name"       => $name,
-                             "UserID"     => $userid,
-                             "UniqueID"   => $uniqueid,
-                             "Time"       => $time,
-                             "Ping"       => $ping,
-                             "Loss"       => $loss,
-                             "State"      => $state,
-                             "Address"    => $address,
-                             "ClientPort" => $port
-                           };
-      } elsif ($::g_mode eq "LAN") {
-        $players{$address} = { 
-                             "Name"       => $name,
-                             "UserID"     => $userid,
-                             "UniqueID"   => $uniqueid,
-                             "Time"       => $time,
-                             "Ping"       => $ping,
-                             "Loss"       => $loss,
-                             "State"      => $state,
-                             "Address"    => $address,
-                             "ClientPort" => $port
-                           };
-      } else {
-        $players{$uniqueid} = { 
-                             "Name"       => $name,
-                             "UserID"     => $userid,
-                             "UniqueID"   => $uniqueid,
-                             "Time"       => $time,
-                             "Ping"       => $ping,
-                             "Loss"       => $loss,
-                             "State"      => $state,
-                             "Address"    => $address,
-                             "ClientPort" => $port
-                            };
-      }
-      
+        } elsif ($line =~ /(\d+)\s+      # userid
+                         ([\d:]+)\s+     # connected
+                         (\d+)\s+        # ping
+                         (\d+)\s+        # loss
+                         ([A-Za-z]+)\s+  # state
+                         (\d+)\s+        # rate
+                         ([^:]+):        # addr
+                         (\d+)\s+        # port
+                         '(.*?)'         # name (CS2 format)
+                         $/x)
+        {
+
+            ($userid, $time, $ping, $loss, $state, $address, $port, $name) = ($1, $2, $3, $4, $5, $7, $8, $9);
+            $uniqueid = $self->find_steamid($userid);
+
+        }
+
     }
-  }
-  return %players;
+  
+    if (!$uniqueid)
+    {
+         return ("", -1, "", 0);
+    }
+
+    my $key = ($::g_mode eq "NameTrack") ? $name : ($::g_mode eq "LAN") ? $address : $uniqueid;
+
+    $players{$key} = { 
+                        "Name"       => $name,
+                        "UserID"     => $userid,
+                        "UniqueID"   => $uniqueid,
+                        "Time"       => $time,
+                        "Ping"       => $ping,
+                        "Loss"       => $loss,
+                        "State"      => $state,
+                        "Address"    => $address,
+                        "ClientPort" => $port
+                     };
+    #print "USERID: '$userid', NAME: '$name', UNIQUEID: '$uniqueid', TIME: '$time', PING: '$ping', LOSS: '$loss', STATE: '$state', ADDRESS:'$address', CLI_PORT: '$port'\n";
+    return %players;
+
 }
 
 sub getServerData
