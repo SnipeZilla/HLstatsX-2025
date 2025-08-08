@@ -3249,7 +3249,7 @@ sub handleData
     foreach my $server (keys %g_servers)
     {
         next unless blessed($g_servers{$server});
-        my $last_event = $ev_daemontime-$g_servers{$server}->{next_timeout};
+        my $last_event = int($ev_daemontime-$g_servers{$server}->{next_timeout});
 
         if($g_servers{$server}->{next_timeout}<$ev_daemontime)
         {
@@ -3287,8 +3287,8 @@ sub handleData
                     });
                 }
             } else { $g_servers{$server}->set("track_server_timestamp", $ev_daemontime); }            
-            
-            if (($g_servers{$s_addr}->{map} eq "") && ($last_event % 60 == 0)) {
+
+            if (($g_servers{$s_addr}->{map} eq "") && ($last_event == 0)) {
                 $g_servers{$server}->get_map_async(sub {
                     my ($err, $map) = @_;
                     warn "[get_map_async] failed: $err" if $err && $g_debug > 0;
