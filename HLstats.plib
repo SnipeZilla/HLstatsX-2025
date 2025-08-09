@@ -35,6 +35,7 @@
 
 
 # HLstatsX CE release version number
+use Encode qw(FB_DEFAULT);
 
 $g_version = "<Unable to Detect>";
 my %db_stmt_cache = ();
@@ -150,24 +151,54 @@ sub quoteSQL
 # Connects to the HLstatsX database
 #
 
-sub doConnect
-{
-	$db_conn = DBI->connect(
-		"DBI:mysql:$db_name:$db_host",
-		$db_user, $db_pass, { mysql_enable_utf8 => 1 }
-	);
-	while(!$db_conn) {
-		&printEvent("MYSQL", "\nCan't connect to MySQL database '$db_name' on '$db_host'\n" .
-			"Server error: $DBI::errstr\n");
-		sleep(5);
-		$db_conn = DBI->connect(
-			"DBI:mysql:$db_name:$db_host",
-			$db_user, $db_pass, { mysql_enable_utf8 => 1 }
-		);
-	}
-	$db_conn->do("SET NAMES 'utf8mb4'");
-	&printEvent("MYSQL", "Connecting to MySQL database '$db_name' on '$db_host' as user '$db_user' ... connected ok", 1);
-	%db_stmt_cache = ();
+#sub doConnect
+#{
+#	$db_conn = DBI->connect(
+#		"DBI:mysql:$db_name:$db_host",
+#		$db_user, $db_pass, { mysql_enable_utf8 => 1 }
+#	);
+#	while(!$db_conn) {
+#		&printEvent("MYSQL", "\nCan't connect to MySQL database '$db_name' on '$db_host'\n" .
+#			"Server error: $DBI::errstr\n");
+#		sleep(5);
+#		$db_conn = DBI->connect(
+#			"DBI:mysql:$db_name:$db_host",
+#			$db_user, $db_pass, { mysql_enable_utf8 => 1 }
+#		);
+#	}
+#	$db_conn->do("SET NAMES 'utf8mb4'");
+#	&printEvent("MYSQL", "Connecting to MySQL database '$db_name' on '$db_host' as user '$db_user' ... connected ok", 1);
+#	%db_stmt_cache = ();
+#}
+
+sub doConnect {
+    my $dsn = "DBI:mysql:database=$db_name;host=$db_host";
+
+    while (1) {
+        $db_conn = DBI->connect(
+            $dsn,
+            $db_user, $db_pass,
+            {
+                RaiseError            => 1,
+                PrintError            => 0,
+                mysql_enable_utf8mb4  => 1,   # full UTF-8 (emoji etc...)
+                mysql_auto_reconnect  => 1
+            }
+        );
+
+        if ($db_conn) {
+            # utf8mb4
+            $db_conn->do("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+            &printEvent("MYSQL", "Connecting to MySQL database '$db_name' on '$db_host' as user '$db_user' ... connected ok", 1);
+            Encode::FB_DEFAULT;
+            last;
+        }
+
+        &printEvent("MYSQL", "\nCan't connect to MySQL database '$db_name' on '$db_host'\n" . "Server error: $DBI::errstr\n");
+        sleep(5);
+    }
+
+    %db_stmt_cache = ();
 }
 
 #
