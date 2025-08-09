@@ -33,9 +33,7 @@
 # 
 # For support and installation notes visit http://www.hlxcommunity.com
 
-
 # HLstatsX CE release version number
-use Encode qw(FB_DEFAULT);
 
 $g_version = "<Unable to Detect>";
 my %db_stmt_cache = ();
@@ -156,28 +154,26 @@ sub doConnect {
 
     while (1) {
         $db_conn = DBI->connect(
-            $dsn,
-            $db_user, $db_pass,
+            $dsn, $db_user, $db_pass,
             {
-                RaiseError            => 1,
-                PrintError            => 0,
-                mysql_enable_utf8mb4  => 1,   # full UTF-8 (emoji etc...)
-                mysql_auto_reconnect  => 1
+                RaiseError           => 1,
+                PrintError           => 0,
+                mysql_enable_utf8mb4 => 1,
+                mysql_auto_reconnect => 1,
             }
         );
 
         if ($db_conn) {
-            # utf8mb4
+            # Force session to utf8mb4
             $db_conn->do("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
-            &printEvent("MYSQL", "Connecting to MySQL database '$db_name' on '$db_host' as user '$db_user' ... connected ok", 1);
-            Encode::FB_DEFAULT;
             last;
         }
 
-        &printEvent("MYSQL", "\nCan't connect to MySQL database '$db_name' on '$db_host'\n" . "Server error: $DBI::errstr\n");
+        printEvent("MYSQL", "Failed to connect to MySQL database '$db_name' on '$db_host'. Error: $DBI::errstr");
         sleep(5);
     }
 
+    printEvent("MYSQL", "Connecting to MySQL database '$db_name' on '$db_host' as user '$db_user' ... connected ok", 1);
     %db_stmt_cache = ();
 }
 

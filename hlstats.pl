@@ -1102,7 +1102,7 @@ sub getPlayerInfo
 {
     my ($player, $create_player, $ipAddr) = @_;
     if ($player =~ /^(.*?)<(\d+)><([^<>]*)><([^<>]*)>(?:<([^<>]*)>)?.*$/) {
-        my $name        = $1;
+        my $name        = Encode::encode("utf8",$1);
         my $userid      = $2;
         my $uniqueid    = $3;
         my $team        = $4;

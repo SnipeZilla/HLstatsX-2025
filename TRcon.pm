@@ -55,7 +55,7 @@ my $SERVERDATA_EXECCOMMAND        = 2;
 my $SERVERDATA_AUTH               = 3;
 my $SERVERDATA_RESPONSE_VALUE     = 0;
 my $SERVERDATA_AUTH_RESPONSE      = 2;
-my $REFRESH_SOCKET_COUNTER_LIMIT  = 100;
+my $REFRESH_SOCKET_COUNTER_LIMIT  = 300;
 my $AUTH_PACKET_ID                = 1;
 my $SPLIT_END_PACKET_ID           = 2;
 
@@ -120,23 +120,25 @@ sub sendrecv
 
   my $rs_counter = $self->{"refresh_socket_counter"};
   if ($rs_counter % $REFRESH_SOCKET_COUNTER_LIMIT == 0)  {
-    if ($self->{"rcon_socket"} > 0) {
-      shutdown($self->{"rcon_socket"}, 2);
-      $self->{"rcon_socket"} = 0;
+    if (defined $self->{"rcon_socket"}) {
+        shutdown($self->{"rcon_socket"}, 2);
+        $self->{"rcon_socket"}->close();
+        $self->{"rcon_socket"} = 0;
     }
-     &::printEvent("TRCON", "Attempting TCP socket on ".$server_object->{address}.":".$server_object->{port}.": $!");
+    &::printEvent("TRCON", "Attempting TCP socket on ".$server_object->{address}.":".$server_object->{port}.": $!");
     my $server_object = $self->{"server_object"};
     $self->{"rcon_socket"}   =  IO::Socket::INET->new(
-                                      		Proto=>"tcp",
+                                            Proto=>"tcp",
                                             PeerAddr=>$server_object->{address}, 
                                             PeerPort=>$server_object->{port}, 
-                            	);
-    if (!$self->{"rcon_socket"}) {
+                                            Timeout  => 2,
+                                );
+    unless ($self->{"rcon_socket"}) {
       &::printEvent("TRCON", "Cannot setup TCP socket on ".$server_object->{address}.":".$server_object->{port}.": $!");
     }
     $self->{"refresh_socket_counter"} = 0;
     $self->{"auth"} = 0;
-  }                          	
+  }
 
   my $r_socket  = $self->{"rcon_socket"};
   my $server    = $self->{"server_object"};
