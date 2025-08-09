@@ -1286,7 +1286,7 @@ sub DoPruning
 	print "done\n++ Cleaning up database: deleting server load history older than one year... ";
 	&execNonQuery("
         DELETE FROM
-            hlstats_server_load
+            hlstats_Server_Load
         WHERE
             timestamp < (UNIX_TIMESTAMP(CURRENT_TIMESTAMP() - INTERVAL 1 YEAR))
 	");

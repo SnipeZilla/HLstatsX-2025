@@ -3263,7 +3263,7 @@ sub handleData
                         }
                     
                         &::execCached("flush_server_load",
-                            "INSERT IGNORE INTO hlstats_server_load
+                            "INSERT IGNORE INTO hlstats_Server_Load
                                 SET
                                     server_id=?,
                                     timestamp=?,
