@@ -288,8 +288,6 @@ sub error
   return $self->{"rcon_error"};
 }
 
-
-
 #
 # Parse "status" command output into player information
 #
@@ -303,110 +301,128 @@ sub find_steamid
           return $player->{uniqueid};
         }
     }
-    return;
+    return undef;
 }
 
 sub getPlayers
 {
-  my ($self) = @_;
-  my $command = $self->{server_object}{play_game} == CS2()?"users;status" : "status";
-  my $status = $self->execute($command, 1);
-  if (!$status)
-  {
-      return ("", -1, "", 0);
-  }
+    my ($self) = @_;
+    my $command = $self->{server_object}{play_game} == CS2() ? "users;status" : "status";
+    my $status = $self->execute($command, 1);
+    return ("", -1, "", 0) unless $status;
 
-  my @lines = split(/[\r\n]+/, $status);
+    my @lines = split(/[\r\n]+/, $status);
+    my %players;
+    my @user_lines;
+    # HL2 standard
+    # userid name uniqueid connected ping loss state adr
+    ##187 ".:[SoV]:.Evil Shadow" STEAM_0:1:6200412 13:48 97 0 active 213.10.196.229:24085
 
-  my %players;
+    # L4D
+    # userid name uniqueid connected ping loss state rate adr
+    ##2 1 "psychonic" STEAM_1:1:4153990 00:45 68 1 active 20000 192.168.5.115:27006
 
-# HL2 standard
-# userid name uniqueid connected ping loss state adr
-# 187 ".:[SoV]:.Evil Shadow" STEAM_0:1:6200412 13:48 97 0 active 213.10.196.229:24085
-
-# L4D
-# userid name uniqueid connected ping loss state rate adr
-#  2 1 "psychonic" STEAM_1:1:4153990 00:45 68 1 active 20000 192.168.5.115:27006
-
-#cs2
-# userid connected ping loss state rate adr name
-# 7    04:32   24    0     active 786432 64.74.97.164:53449 'snipezilla'
-  my ($slot,$realuserid,$userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port);
-
-  foreach my $line (@lines)
-  {
-       if ($line =~ /
-                    ^(?:\#\s*)?     # not for cs2
-                    (\d+)\s+        # userid
-                    (?:\d+\s+|)     # extra number in L4D, not sure what this is??
-                    "(.+)"\s+       # name
-                    (\S+)\s+        # uniqueid
-                    ([\d:]+)\s+     # time
-                    (\d+)\s+        # ping
-                    (\d+)\s+        # loss
-                    ([A-Za-z]+)\s+  # state
-                    (?:\d+\s+|)     # rate (L4D only)
-                    ([^:]+):        # addr
-                    (\S+)           # port
-                    $/x)
-      {
-
-        ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
-         $uniqueid =~ s!\[U:1:(\d+)\]!($1 % 2).':'.int($1 / 2)!eg;
-         $uniqueid =~ s/^STEAM_[0-9]+?\://i;
-
-      } elsif ($line =~ /
-                        (\d+)\s+           # userid      $1
-                        ([\d:]+)\s+        # connected   $2
-                        (\d+)\s+           # ping        $3
-                        (\d+)\s+           # loss        $4
-                        ([A-Za-z]+)\s*     # state       $5
-                        (?:                # optional addr:port
-                            ([^:]+) :      # addr        $6
-                            (\d+) \s+      # port        $7
-                        )?
-                        '(.*?)'            # name        $8
-                        $/x)
-      {
-
-          ($userid, $time, $ping, $loss, $state, $address, $port, $name) = ($1, $2, $3, $4, $5, ($6 // ""), ($7 // ""), $8);
-          $uniqueid = $self->find_steamid($userid);
-
-      } elsif ($line =~ /
-                        ^(\d+)            # slot
-                        :(\d+)\s*         # userid
-                        ([^"]*)\s*        # name
-                        $/x)
-      {
-        ($slot, $realuserid, $name) = ($1, $2, $3);
-        if ( $slot ne $realuserid ) {
-            $self->{server_object}->{slot}->{"$slot/$name"} = $realuserid;
-            print "slot/realuseid:: ".$self->{server_object}->{slot}->{"$slot/$name"}."\n";
+    #cs2
+    # userid connected ping loss state rate adr name
+    # 7    04:32   24    0     active 786432 64.74.97.164:53449 'snipezilla'
+    # slot id name
+    # 0:321:"snipezilla"
+    foreach my $line (@lines) {
+        # Save 'users' list for later
+        if ($line =~ /^\d+:\d+:/) {
+            push @user_lines, $line;
+            next;
         }
-      }
+        # 'status'
+        my ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port);
+        if ($line =~ /
+                      ^(?:\#\s*)?     # not for cs2
+                      (\d+)\s+        # userid
+                      (?:\d+\s+|)     # extra number in L4D, not sure what this is??
+                      "(.+)"\s+       # name
+                      (\S+)\s+        # uniqueid
+                      ([\d:]+)\s+     # time
+                      (\d+)\s+        # ping
+                      (\d+)\s+        # loss
+                      ([A-Za-z]+)\s+  # state
+                      (?:\d+\s+|)     # rate (L4D only)
+                      ([^:]+):        # addr
+                      (\S+)           # port
+                      $/x)
+        {
 
-  }
+            ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+            $uniqueid =~ s!\[U:1:(\d+)\]!($1 % 2).':'.int($1 / 2)!eg;
+            $uniqueid =~ s/^STEAM_[0-9]+?\://i;
+            next unless $uniqueid;
+            my $key = ($::g_mode eq "NameTrack") ? $name : ($::g_mode eq "LAN") ? $address : $uniqueid;
+            $players{$key} = {
+                "Name"       => $name,
+                "UserID"     => $userid,
+                "UniqueID"   => $uniqueid,
+                "Time"       => $time,
+                "Ping"       => $ping,
+                "Loss"       => $loss,
+                "State"      => $state,
+                "Address"    => $address,
+                "ClientPort" => $port
+            };
+
+        } elsif ($line =~ /
+                          (\d+)\s+           # userid      $1
+                          ([\d:]+)\s+        # connected   $2
+                          (\d+)\s+           # ping        $3
+                          (\d+)\s+           # loss        $4
+                          ([A-Za-z]+)\s*     # state       $5
+                          (?:                # optional addr:port
+                              ([^:]+) :      # addr        $6
+                              (\d+) \s+      # port        $7
+                          )?
+                          '(.*?)'            # name        $8
+                          $/x)
+        {
   
-  if (!defined $uniqueid || !$uniqueid)
-  {
-       return ("", -1, "", 0);
-  }
+            ($userid, $time, $ping, $loss, $state, $address, $port, $name) = ($1, $2, $3, $4, $5, ($6 // ""), ($7 // ""), $8);
+            $uniqueid = $self->find_steamid($userid);
+            next unless $uniqueid;
+            my $key = ($::g_mode eq "NameTrack") ? $name : ($::g_mode eq "LAN") ? $address : $uniqueid;
+            $players{$key} = {
+                "slot"       => $userid,  # default to userid as slot
+                "Name"       => $name,
+                "UserID"     => $userid,
+                "realuserid" => -1,
+                "UniqueID"   => $uniqueid,
+                "Time"       => $time,
+                "Ping"       => $ping,
+                "Loss"       => $loss,
+                "State"      => $state,
+                "Address"    => $address,
+                "ClientPort" => $port
+            };
 
-  my $key = ($::g_mode eq "NameTrack") ? $name : ($::g_mode eq "LAN") ? $address : $uniqueid;
+        }
 
-  $players{$key} = {  "slot"       => $slot // $userid,
-                      "Name"       => $name,
-                      "UserID"     => $userid,
-                      "realuserid" => $realuserid // -1,
-                      "UniqueID"   => $uniqueid,
-                      "Time"       => $time,
-                      "Ping"       => $ping,
-                      "Loss"       => $loss,
-                      "State"      => $state,
-                      "Address"    => $address,
-                      "ClientPort" => $port
-                   };
-  return %players;
+    }
+
+    # Reconcile slot/realuserid for CS2 competitive
+    foreach my $line (@user_lines) {
+        if ($line =~ /^(\d+):(\d+):"(.+)"$/) {
+            my ($slot, $realuserid, $name) = ($1, $2, $3);
+            foreach my $key (keys %players) {
+                my $p = $players{$key};
+                if ($p->{UserID} == $realuserid && $p->{Name} eq $name) {
+                    if (!defined $p->{slot} || $p->{slot} ne $slot) {
+                        $p->{slot} = $slot;
+                        $p->{realuserid} = $realuserid;
+                        $self->{server_object}->{slot}->{"$slot/$name"} = $realuserid;
+                    }
+                    last;
+                }
+            }
+        }
+    }
+
+    return %players;
 
 }
 

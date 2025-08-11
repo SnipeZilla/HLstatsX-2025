@@ -3357,15 +3357,15 @@ sub handleData
                     my %status_players = ref($status_ref) eq 'HASH' ? %$status_ref : ();
                     warn "[RCON] Failed to get players: $err" if $err && $g_debug > 0;
                     my %players_temp = %{ $g_servers{$server}->{"srv_players"} };
-
+                    my $notid = 0;
                     while (my ($pl, $player) = each %players_temp) {
                         my $t = ($g_mode eq "LAN") ? 500 : 250;
                         my $userid   = $player->{userid};
                         my $uniqueid = $player->{uniqueid};
-                        if ( $player->{slot} ne $player->{realuserid} ) {
+                        if ( defined $player->{slot} && $player->{slot} ne $player->{UserID} ) {
                             $g_servers{$server}->{slot}->{"$player->{slot}/$player->{name}"} = $player->{realuserid};
+                            $notid++;
                         }
-
                         if (($ev_daemontime - $player->{timestamp}) > $t) {
                             if (defined($status_players{$uniqueid})) {
                                 printNotice("Not auto-disconnecting " . $player->getInfoString() . " because player exists in server status");
@@ -3374,6 +3374,9 @@ sub handleData
                                 removePlayer($server, $userid, $uniqueid);
                             }
                         }
+                    }
+                    if ( !$notid ) {
+                        $g_servers{$server}->{slot} = {};
                     }
                 });
             }
