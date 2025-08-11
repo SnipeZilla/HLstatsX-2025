@@ -3357,14 +3357,14 @@ sub handleData
                     my %status_players = ref($status_ref) eq 'HASH' ? %$status_ref : ();
                     warn "[RCON] Failed to get players: $err" if $err && $g_debug > 0;
                     my %players_temp = %{ $g_servers{$server}->{"srv_players"} };
-                    my $notid = 0;
+                    my $slot = 0;
                     while (my ($pl, $player) = each %players_temp) {
                         my $t = ($g_mode eq "LAN") ? 500 : 250;
                         my $userid   = $player->{userid};
                         my $uniqueid = $player->{uniqueid};
                         if ( defined $player->{slot} && $player->{slot} ne $player->{UserID} ) {
                             $g_servers{$server}->{slot}->{"$player->{slot}/$player->{name}"} = $player->{realuserid};
-                            $notid++;
+                            $slot++;
                         }
                         if (($ev_daemontime - $player->{timestamp}) > $t) {
                             if (defined($status_players{$uniqueid})) {
@@ -3375,8 +3375,8 @@ sub handleData
                             }
                         }
                     }
-                    if ( !$notid ) {
-                        $g_servers{$server}->{slot} = {};
+                    if ( !$slot ) {
+                        $g_servers{$server}->{slot} = {}; # Use in CS2 competitive
                     }
                 });
             }

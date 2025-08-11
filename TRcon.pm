@@ -228,10 +228,10 @@ sub recieve_rcon
     if(IO::Select->new($r_socket)->can_read($TIMEOUT)) {  # $TIMEOUT seconds timeout
       $r_socket->recv($tmp, 1500);
       $size    = unpack("V",  substr($tmp, 0, 4));
-	  if ( ($size // 0) == 0 ) {
-		$self->{"refresh_socket_counter"} = 0;
-		return (-1, -1, -1);
-	  }
+      if ( ($size // 0) == 0 ) {
+        $self->{"refresh_socket_counter"} = 0;
+        return (-1, -1, -1);
+      }
       $id      = unpack("V",  substr($tmp, 4, 4));
       $command = unpack("V",  substr($tmp, 8, 4));
       if ($id == $packet_id)  {
@@ -247,11 +247,11 @@ sub recieve_rcon
               if ($split_id == $last_packet_id) {
                 $split_data = substr($split_data, 12, length($split_data)-12);
               }
-			  if (!defined($split_id)){
-				$last_packet_id = $SPLIT_END_PACKET_ID;
-			  } else {
-				$last_packet_id = $split_id;
-			  }
+              if (!defined($split_id)){
+                $last_packet_id = $SPLIT_END_PACKET_ID;
+              } else {
+                $last_packet_id = $split_id;
+              }
               $tmp .= $split_data;
             } else {
               &::printNotice("TRCON", "Multiple packet error");
@@ -354,8 +354,8 @@ sub getPlayers
             ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
             $uniqueid =~ s!\[U:1:(\d+)\]!($1 % 2).':'.int($1 / 2)!eg;
             $uniqueid =~ s/^STEAM_[0-9]+?\://i;
-            next unless $uniqueid;
             my $key = ($::g_mode eq "NameTrack") ? $name : ($::g_mode eq "LAN") ? $address : $uniqueid;
+            next unless $key;
             $players{$key} = {
                 "Name"       => $name,
                 "UserID"     => $userid,
@@ -384,8 +384,8 @@ sub getPlayers
   
             ($userid, $time, $ping, $loss, $state, $address, $port, $name) = ($1, $2, $3, $4, $5, ($6 // ""), ($7 // ""), $8);
             $uniqueid = $self->find_steamid($userid);
-            next unless $uniqueid;
             my $key = ($::g_mode eq "NameTrack") ? $name : ($::g_mode eq "LAN") ? $address : $uniqueid;
+            next unless $key;
             $players{$key} = {
                 "slot"       => $userid,  # default to userid as slot
                 "Name"       => $name,
@@ -467,7 +467,7 @@ sub getServerData
     }
   }
   if ($game == L4D()) {
-	  $difficulty = $self->getDifficulty();
+      $difficulty = $self->getDifficulty();
   }
   return ($servhostname, $map, $max_players, $difficulty);
 }
@@ -495,32 +495,32 @@ sub getVisiblePlayers
 }
 
 my %l4d_difficulties = (
-	'Easy'       => 1,
-	'Normal'     => 2,
-	'Hard'       => 3,
-	'Impossible' => 4
+    'Easy'       => 1,
+    'Normal'     => 2,
+    'Hard'       => 3,
+    'Impossible' => 4
 );
 
 sub getDifficulty
 {
-	#z_difficulty
-	#"z_difficulty" = "Normal"
-	# game replicated
-	# - Difficulty of the current game (Easy, Normal, Hard, Impossible)
-	
+    #z_difficulty
+    #"z_difficulty" = "Normal"
+    # game replicated
+    # - Difficulty of the current game (Easy, Normal, Hard, Impossible)
+    
   my ($self) = @_;
   my $zdifficulty = $self->execute("z_difficulty");
-	
+    
   my @lines = split(/[\r\n]+/, $zdifficulty);
   
   foreach my $line (@lines)
   {
     if ($line =~ /^\s*"z_difficulty"\s*=\s*"([A-Za-z]+)".*$/x)
     {
-		if (exists($l4d_difficulties{$1}))
-		{
-			return $l4d_difficulties{$1};
-		}
+        if (exists($l4d_difficulties{$1}))
+        {
+            return $l4d_difficulties{$1};
+        }
     }
   }
   return 0;
