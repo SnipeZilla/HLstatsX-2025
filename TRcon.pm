@@ -120,7 +120,7 @@ sub sendrecv
 
   my $rs_counter = $self->{"refresh_socket_counter"};
   if ($rs_counter % $REFRESH_SOCKET_COUNTER_LIMIT == 0)  {
-    if (defined $self->{"rcon_socket"}) {
+    if (defined $self->{"rcon_socket"} && $self->{"rcon_socket"} > 0) {
         shutdown($self->{"rcon_socket"}, 2);
         $self->{"rcon_socket"}->close();
         $self->{"rcon_socket"} = 0;
@@ -222,7 +222,7 @@ sub recieve_rcon
   my $r_socket  = $self->{"rcon_socket"};
   my $server    = $self->{"server_object"};
   my $auth      = $self->{"auth"};
-  my $packet_id = $self->{"packet_id"};
+  $packet_id    = $self->{"packet_id"};
   
   if (($r_socket) && ($r_socket->connected() )) {
     if(IO::Select->new($r_socket)->can_read($TIMEOUT)) {  # $TIMEOUT seconds timeout
@@ -309,12 +309,13 @@ sub find_steamid
 sub getPlayers
 {
   my ($self) = @_;
-  my $status = $self->execute("status", 1);
+  my $command = $self->{server_object}{play_game} == CS2()?"users;status" : "status";
+  my $status = $self->execute($command, 1);
   if (!$status)
   {
-  	return ("", -1, "", 0);
+      return ("", -1, "", 0);
   }
-  
+
   my @lines = split(/[\r\n]+/, $status);
 
   my %players;
@@ -330,75 +331,91 @@ sub getPlayers
 #cs2
 # userid connected ping loss state rate adr name
 # 7    04:32   24    0     active 786432 64.74.97.164:53449 'snipezilla'
-    my ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port);
-    foreach my $line (@lines)
-    {
-        if ($line =~ /^(?:\#\s*)?     # not for cs2
-                      (\d+)\s+        # userid
-                      (?:\d+\s+|)     # extra number in L4D, not sure what this is??
-                      "(.+)"\s+       # name
-                      (\S+)\s+        # uniqueid
-                      ([\d:]+)\s+     # time
-                      (\d+)\s+        # ping
-                      (\d+)\s+        # loss
-                      ([A-Za-z]+)\s+  # state
-                      (?:\d+\s+|)     # rate (L4D only)
-                      ([^:]+):        # addr
-                      (\S+)           # port
-                      $/x)
-        {
+  my ($slot,$realuserid,$userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port);
 
-          ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
-           $uniqueid =~ s!\[U:1:(\d+)\]!($1 % 2).':'.int($1 / 2)!eg;
-           $uniqueid =~ s/^STEAM_[0-9]+?\://i;
+  foreach my $line (@lines)
+  {
+       if ($line =~ /
+                    ^(?:\#\s*)?     # not for cs2
+                    (\d+)\s+        # userid
+                    (?:\d+\s+|)     # extra number in L4D, not sure what this is??
+                    "(.+)"\s+       # name
+                    (\S+)\s+        # uniqueid
+                    ([\d:]+)\s+     # time
+                    (\d+)\s+        # ping
+                    (\d+)\s+        # loss
+                    ([A-Za-z]+)\s+  # state
+                    (?:\d+\s+|)     # rate (L4D only)
+                    ([^:]+):        # addr
+                    (\S+)           # port
+                    $/x)
+      {
 
-        } elsif ($line =~ /(\d+)\s+      # userid
-                         ([\d:]+)\s+     # connected
-                         (\d+)\s+        # ping
-                         (\d+)\s+        # loss
-                         ([A-Za-z]+)\s+  # state
-                         (\d+)\s+        # rate
-                         ([^:]+):        # addr
-                         (\d+)\s+        # port
-                         '(.*?)'         # name (CS2 format)
-                         $/x)
-        {
+        ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+         $uniqueid =~ s!\[U:1:(\d+)\]!($1 % 2).':'.int($1 / 2)!eg;
+         $uniqueid =~ s/^STEAM_[0-9]+?\://i;
 
-            ($userid, $time, $ping, $loss, $state, $address, $port, $name) = ($1, $2, $3, $4, $5, $7, $8, $9);
-            $uniqueid = $self->find_steamid($userid);
+      } elsif ($line =~ /
+                        (\d+)\s+           # userid      $1
+                        ([\d:]+)\s+        # connected   $2
+                        (\d+)\s+           # ping        $3
+                        (\d+)\s+           # loss        $4
+                        ([A-Za-z]+)\s*     # state       $5
+                        (?:                # optional addr:port
+                            ([^:]+) :      # addr        $6
+                            (\d+) \s+      # port        $7
+                        )?
+                        '(.*?)'            # name        $8
+                        $/x)
+      {
 
+          ($userid, $time, $ping, $loss, $state, $address, $port, $name) = ($1, $2, $3, $4, $5, ($6 // ""), ($7 // ""), $8);
+          $uniqueid = $self->find_steamid($userid);
+
+      } elsif ($line =~ /
+                        ^(\d+)            # slot
+                        :(\d+)\s*         # userid
+                        ([^"]*)\s*        # name
+                        $/x)
+      {
+        ($slot, $realuserid, $name) = ($1, $2, $3);
+        if ( $slot ne $realuserid ) {
+            $self->{server_object}->{slot}->{"$slot/$name"} = $realuserid;
+            print "slot/realuseid:: ".$self->{server_object}->{slot}->{"$slot/$name"}."\n";
         }
+      }
 
-    }
+  }
   
-    if (!$uniqueid)
-    {
-         return ("", -1, "", 0);
-    }
+  if (!defined $uniqueid || !$uniqueid)
+  {
+       return ("", -1, "", 0);
+  }
 
-    my $key = ($::g_mode eq "NameTrack") ? $name : ($::g_mode eq "LAN") ? $address : $uniqueid;
+  my $key = ($::g_mode eq "NameTrack") ? $name : ($::g_mode eq "LAN") ? $address : $uniqueid;
 
-    $players{$key} = { 
-                        "Name"       => $name,
-                        "UserID"     => $userid,
-                        "UniqueID"   => $uniqueid,
-                        "Time"       => $time,
-                        "Ping"       => $ping,
-                        "Loss"       => $loss,
-                        "State"      => $state,
-                        "Address"    => $address,
-                        "ClientPort" => $port
-                     };
-    #print "USERID: '$userid', NAME: '$name', UNIQUEID: '$uniqueid', TIME: '$time', PING: '$ping', LOSS: '$loss', STATE: '$state', ADDRESS:'$address', CLI_PORT: '$port'\n";
-    return %players;
+  $players{$key} = {  "slot"       => $slot // $userid,
+                      "Name"       => $name,
+                      "UserID"     => $userid,
+                      "realuserid" => $realuserid // -1,
+                      "UniqueID"   => $uniqueid,
+                      "Time"       => $time,
+                      "Ping"       => $ping,
+                      "Loss"       => $loss,
+                      "State"      => $state,
+                      "Address"    => $address,
+                      "ClientPort" => $port
+                   };
+  return %players;
 
 }
 
 sub getServerData
 {
   my ($self) = @_;
+
   my $status = $self->execute("status", 1);
-  
+
   my $server_object = $self->{server_object};
   my $game = $server_object->{play_game};  
 

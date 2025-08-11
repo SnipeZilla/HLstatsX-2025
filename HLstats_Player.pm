@@ -53,6 +53,7 @@ sub new
 	
 	# Initialise Properties
 	$self->{userid}            = 0;
+	$self->{realuserid}        = -1;
 	$self->{server}            = "";
 	$self->{server_id}         = 1;
 	$self->{name}              = "";

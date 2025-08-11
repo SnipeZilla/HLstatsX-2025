@@ -1100,20 +1100,64 @@ sub getPlayerInfoString
 
 sub getPlayerInfo
 {
-    my ($player, $create_player, $ipAddr) = @_;
+    my ($player, $create_player, $ipAddr, $realuserid) = @_;
+
     if ($player =~ /^(.*?)<(\d+)><([^<>]*)><([^<>]*)>(?:<([^<>]*)>)?.*$/) {
+        my $rawname     = $1;
         my $name        = Encode::encode("utf8",$1);
-        my $userid      = $2;
+        my $slot_or_id  = $2;
         my $uniqueid    = $3;
         my $team        = $4;
-        my $role        = $5||"";
+        my $role        = $5 || "";
         my $bot         = 0;
         my $haveplayer  = 0;
-
         $plainuniqueid = $uniqueid;
         $uniqueid =~ s!\[U:1:(\d+)\]!'STEAM_0:'.($1 % 2).':'.int($1 / 2)!eg;
         $uniqueid =~ s/^STEAM_[0-9]+?\://;
-        
+        # --- CS2 competitive-specific handling ---
+        if ($g_servers{$s_addr}->{play_game} == CS2()) {
+           if (botidcheck($uniqueid)) {
+               $md5 = Digest::MD5->new;
+               $md5->add($name);
+               $md5->add($s_addr);
+               $uniqueid = "BOT:" . $md5->hexdigest;
+               $unique_id = $uniqueid if ($g_mode eq "LAN");
+           }
+           if (!defined $realuserid && exists $g_servers{$s_addr}->{srv_players}->{"$slot_or_id/$uniqueid"} ) {
+               if ($g_servers{$s_addr}->{srv_players}->{"$slot_or_id/$uniqueid"}->{realuserid} > 0) {
+                   $realuserid = $g_servers{$s_addr}->{srv_players}->{"$slot_or_id/$uniqueid"}->{realuserid};
+                   print "realuserid is set to $realuserid\n";
+               }
+           }
+           if (!defined $realuserid) {
+               foreach my $index (keys %{$g_servers{$s_addr}->{srv_players}}) {
+                   my $pdata = $g_servers{$s_addr}->{srv_players}{$index};
+                   if (defined $pdata->{realuserid} && $pdata->{uniqueid} eq $uniqueid) {
+                       $realuserid = $pdata->{realuserid} if ($pdata->{realuserid} > 0);
+                       last;
+                   }
+               }
+           }
+            if (!defined $realuserid && exists $g_servers{$s_addr}->{slot}->{"$slot_or_id/$rawname"}) {
+                my $pdata = delete $g_servers{$s_addr}->{slot}->{"$slot_or_id/$rawname"};
+                $realuserid = $pdata->{userid} if defined $pdata->{userid};
+            }
+            if (defined $realuserid) {
+                my $new_key = "$realuserid/$uniqueid";
+                foreach my $old_key (keys %{ $g_servers{$s_addr}->{srv_players} }) {
+                    if ($old_key =~ m{/.*\Q$uniqueid\E$} && $old_key ne $new_key) {
+                        $g_servers{$s_addr}->{srv_players}->{$new_key} = delete $g_servers{$s_addr}->{srv_players}->{$old_key};
+                        $g_servers{$s_addr}->{srv_players}->{$new_key}->{userid} = $realuserid;
+                        $g_servers{$s_addr}->{srv_players}->{$new_key}->{realuserid} = $realuserid;
+                        print "new realuserid $realuserid\n";
+                        last;
+                    }
+                }
+            }
+        }
+        # --- end CS2 competitive-specific handling ---
+        my $userid      = $realuserid // $slot_or_id;
+    
         if (($uniqueid eq "Console") && ($team eq "Console")) {
           return 0;
         }
@@ -1238,11 +1282,12 @@ sub getPlayerInfo
                     || $uniqueid eq "VALVE_ID_PENDING" || $uniqueid eq "VALVE_ID_LAN"
                 ) {
                     return {
-                        name     => $name,
-                        userid   => $userid,
-                        uniqueid => $uniqueid,
-                        team     => $team,
-                        is_bot   => $bot
+                        name           => $name,
+                        userid         => $userid,
+                        uniqueid       => $uniqueid,
+                        realuserid     => $realuserid // -1,
+                        team           => $team,
+                        is_bot         => $bot
                     };
                 }
             }
@@ -1291,7 +1336,7 @@ sub getPlayerInfo
                 }
                 
                 $player->updateTimestamp();
-            }  
+            }
         } else {
             # In CS2, the first user is always assigned userid of '0'. Always create a player regardless of its value
             #       E.g. L 02/01/2024 - 21:02:01.253 - "X<0><[U:Y]><>" entered the game
@@ -1307,6 +1352,7 @@ sub getPlayerInfo
                         server => $s_addr,
                         server_id => $g_servers{$s_addr}->{id},
                         userid => $userid,
+                        realuserid => $realuserid // -1,
                         uniqueid => $uniqueid,
                         plain_uniqueid => $plainuniqueid,
                         game => $g_servers{$s_addr}->{game},
@@ -1332,6 +1378,7 @@ sub getPlayerInfo
                         server => $s_addr,
                         server_id => $g_servers{$s_addr}->{id},
                         userid => $userid,
+                        realuserid => $realuserid // -1,
                         uniqueid => $uniqueid,
                         plain_uniqueid => $plainuniqueid,
                         game => $g_servers{$s_addr}->{game},
@@ -1361,7 +1408,6 @@ sub getPlayerInfo
         my $name     = $1;
         my $uniqueid = $2;
         my $bot      = 0;
-        
         if (&botidcheck($uniqueid)) {
             $md5 = Digest::MD5->new;
             $md5->add($ev_daemontime);
@@ -1746,8 +1792,8 @@ sub handleIncoming {
          }
 
         $s_output =~ s/[\r\n\0]//g;    # remove naughty characters
-        $s_output =~ s/\[No.C-D\]//g;    # remove [No C-D] tag
-        $s_output =~ s/\[OLD.C-D\]//g;    # remove [OLD C-D] tag
+        $s_output =~ s/\[No.C-D\]//g;  # remove [No C-D] tag
+        $s_output =~ s/\[OLD.C-D\]//g; # remove [OLD C-D] tag
         $s_output =~ s/\[NOCL\]//g;    # remove [NOCL] tag
 
         # Get the server info, if we know the server, otherwise ignore the data
@@ -1963,7 +2009,9 @@ sub handleIncoming {
                     &printEvent("SERVER", "Auto-updating hostname is disabled", 1);
                 }
                 $g_servers{$s_addr}->get_game_mod_opts();
+                $g_servers{$s_addr}->getSlots() if ($g_servers{$s_addr}->{play_game} == CS2());
             }
+
         }
 
         if (!$g_servers{$s_addr}->{"srv_players"})
@@ -2772,10 +2820,16 @@ sub handleIncoming {
                         $ev_properties
                     );
                 }
-            } elsif ( (like($ev_verb, "STEAM USERID validated") || like($ev_verb, "VALVE USERID validated")) && $g_servers{$s_addr}->{play_game} != CS2() )  {               
- 
+            } elsif ( (like($ev_verb, "STEAM USERID validated") || like($ev_verb, "VALVE USERID validated")) )  {
+                my $realuserid = undef;
                 my $isCSGO = ($g_servers{$s_addr}->{play_game} == CSGO());
-                my $playerinfo = &getPlayerInfo($ev_player, $isCSGO ? 1 : 0);
+
+                if ($g_servers{$s_addr}->{play_game} == CS2()) {
+                    $ev_player =~ /^(.*?)<(\d+)><([^<>]*)><([^<>]*)>(?:<([^<>]*)>)?.*$/;
+                    $realuserid = $2;
+                }
+
+                my $playerinfo = &getPlayerInfo($ev_player, $isCSGO ? 1 : 0, undef, $realuserid);
 
                 if ($playerinfo) {
 
@@ -3308,7 +3362,10 @@ sub handleData
                         my $t = ($g_mode eq "LAN") ? 500 : 250;
                         my $userid   = $player->{userid};
                         my $uniqueid = $player->{uniqueid};
-            
+                        if ( $player->{slot} ne $player->{realuserid} ) {
+                            $g_servers{$server}->{slot}->{"$player->{slot}/$player->{name}"} = $player->{realuserid};
+                        }
+
                         if (($ev_daemontime - $player->{timestamp}) > $t) {
                             if (defined($status_players{$uniqueid})) {
                                 printNotice("Not auto-disconnecting " . $player->getInfoString() . " because player exists in server status");
@@ -3816,22 +3873,15 @@ if ($g_stdin == 0) {
             my ($daemon, $tx) = @_;
             my $body = $tx->req->body || '';
             my $data = decode('utf8', $body);
-            my @lines = split(/\r?\n/, $data);
-            my @processed;
-            foreach my $line (@lines) {
-                if ($line =~ /^(?:L\s*)?(\d{2}\/\d{2}\/\d{4} - \d{2}:\d{2}:\d{2}(?:\.\d{3})?)/) {
-                    $line = "L $line" unless $line =~ /^L /;
-                    push @processed, $line;
-                }
-            }
+            if ($data =~ /^(?:L\s*)?(\d{2}\/\d{2}\/\d{4} - \d{2}:\d{2}:\d{2}(?:\.\d{3})?)/) {
+               $data = "L $data" unless $data =~ /^L /;
             my $addr = $tx->req->headers->header('X-Server-Addr') || 'unknown:port';
             ($s_peerhost, $s_peerport) = split(/:/, $addr);
-            #$s_peerhost //= 'unknown';
-            #$s_peerport //= 0;
-            for my $line (@processed) {
-                eval { handleIncoming("HTTP", $line); };
-                warn "[HTTP] handleIncoming error: $@" if $@;
-            }
+            $s_peerhost //= 'unknown';
+            $s_peerport //= 0;
+            eval { handleIncoming("HTTP", $data); };
+            warn "[HTTP] handleIncoming error: $@" if $@;
+        }
             $tx->res->code(200)->body("OK\n");
             $tx->resume;
         });

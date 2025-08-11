@@ -42,6 +42,35 @@ use Syntax::Keyword::Try;
 
 do "$::opt_libdir/HLstats_GameConstants.plib";
 
+sub getSlots
+{
+  my ($self) = @_;
+  my $status = $self->{rcon_obj}->execute("users", 1);
+  if (!$status)
+  {
+      return ("", -1, "", 0);
+  }
+  my @lines = split(/[\r\n]+/, $status);
+  my ($slot, $realuserid, $name);
+
+  foreach my $line (@lines)
+  {
+      if ($line =~ /
+                                ^(\d+):            # slot
+                                 (\d+):\s*         # userid
+                                "([^"]*)"\s*      # name
+                                $/x)
+      {
+          ($slot, $realuserid, $name) = ($1, $2, $3);
+          if ( $slot ne $realuserid ) {
+              $self->{slot}->{"$slot/$name"} = {userid => $realuserid};
+          }
+      }
+
+  }
+}
+
+
 sub new
 {
     my ($class_name, $serverId, $address, $port, $server_name, $rcon_pass, $game, $publicaddress, $gameengine, $realgame, $maxplayers) = @_;
@@ -56,7 +85,8 @@ sub new
     $self->{game}           = $game;
     $self->{rcon}           = $rcon_pass;
     $self->{srv_players}    = ();
-    
+    $self->{slot}           = ();
+
     # Game Engine
     # HL1 - 1
     # HL2 (original) - 2
