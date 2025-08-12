@@ -1103,8 +1103,7 @@ sub getPlayerInfo
     my ($player, $create_player, $ipAddr, $realuserid) = @_;
 
     if ($player =~ /^(.*?)<(\d+)><([^<>]*)><([^<>]*)>(?:<([^<>]*)>)?.*$/) {
-        my $rawname     = $1;
-        my $name        = Encode::encode("utf8",$1);
+        my $name        = $1; #Encode::encode("utf8",$1);
         my $slot_or_id  = $2;
         my $uniqueid    = $3;
         my $team        = $4;
@@ -1116,48 +1115,31 @@ sub getPlayerInfo
         $uniqueid =~ s/^STEAM_[0-9]+?\://;
         # --- CS2 competitive-specific handling ---
         if ($g_servers{$s_addr}->{play_game} == CS2()) {
-           if (botidcheck($uniqueid)) {
+            if (botidcheck($uniqueid)) {
                $md5 = Digest::MD5->new;
                $md5->add($name);
                $md5->add($s_addr);
                $uniqueid = "BOT:" . $md5->hexdigest;
                $unique_id = $uniqueid if ($g_mode eq "LAN");
-           }
-           if (!defined $realuserid && exists $g_servers{$s_addr}->{srv_players}->{"$slot_or_id/$uniqueid"} ) {
-               if ($g_servers{$s_addr}->{srv_players}->{"$slot_or_id/$uniqueid"}->{realuserid} > 0) {
-                   $realuserid = $g_servers{$s_addr}->{srv_players}->{"$slot_or_id/$uniqueid"}->{realuserid};
-                   print "realuserid is set to $realuserid\n";
-               }
-           }
-           if (!defined $realuserid) {
-               foreach my $index (keys %{$g_servers{$s_addr}->{srv_players}}) {
-                   my $pdata = $g_servers{$s_addr}->{srv_players}{$index};
-                   if (defined $pdata->{realuserid} && $pdata->{uniqueid} eq $uniqueid) {
-                       $realuserid = $pdata->{realuserid} if ($pdata->{realuserid} > 0);
-                       last;
-                   }
-               }
-           }
-            if (!defined $realuserid && exists $g_servers{$s_addr}->{slot}->{"$slot_or_id/$rawname"}) {
-                my $pdata = delete $g_servers{$s_addr}->{slot}->{"$slot_or_id/$rawname"};
-                $realuserid = $pdata->{userid} if defined $pdata->{userid};
             }
-            if (defined $realuserid) {
-                my $new_key = "$realuserid/$uniqueid";
-                foreach my $old_key (keys %{ $g_servers{$s_addr}->{srv_players} }) {
-                    if ($old_key =~ m{/.*\Q$uniqueid\E$} && $old_key ne $new_key) {
-                        $g_servers{$s_addr}->{srv_players}->{$new_key} = delete $g_servers{$s_addr}->{srv_players}->{$old_key};
-                        $g_servers{$s_addr}->{srv_players}->{$new_key}->{userid} = $realuserid;
-                        $g_servers{$s_addr}->{srv_players}->{$new_key}->{realuserid} = $realuserid;
-                        print "new realuserid $realuserid\n";
-                        last;
-                    }
+
+            if (!defined $realuserid && exists $g_servers{$s_addr}->{slot}{"$slot_or_id/$name"} ) {
+                $realuserid = $g_servers{$s_addr}->{slot}->{"$slot_or_id/$name"};
+                delete $g_servers{$s_addr}->{slot}{"$slot_or_id/$name"};
+            }
+            foreach my $index (keys %{$g_servers{$s_addr}->{srv_players}}) {
+                my $pdata = $g_servers{$s_addr}->{srv_players}{$index};
+                if ($pdata->{uniqueid} eq $uniqueid) {
+                    if (length $pdata->{realuserid}) {
+                        $realuserid = $pdata->{realuserid};
+                    } elsif (defined $realuserid) { #STEAM Validation, or daemon startup
+                        $g_servers{$s_addr}->{srv_players}->{$index}->{realuserid} = $realuserid;
+                    } last;
                 }
             }
         }
         # --- end CS2 competitive-specific handling ---
-        my $userid      = $realuserid // $slot_or_id;
-    
+        my $userid = $realuserid // $slot_or_id;
         if (($uniqueid eq "Console") && ($team eq "Console")) {
           return 0;
         }
@@ -1285,7 +1267,6 @@ sub getPlayerInfo
                         name           => $name,
                         userid         => $userid,
                         uniqueid       => $uniqueid,
-                        realuserid     => $realuserid // -1,
                         team           => $team,
                         is_bot         => $bot
                     };
@@ -1352,7 +1333,7 @@ sub getPlayerInfo
                         server => $s_addr,
                         server_id => $g_servers{$s_addr}->{id},
                         userid => $userid,
-                        realuserid => $realuserid // -1,
+                        realuserid => $realuserid // '',
                         uniqueid => $uniqueid,
                         plain_uniqueid => $plainuniqueid,
                         game => $g_servers{$s_addr}->{game},
@@ -1378,7 +1359,7 @@ sub getPlayerInfo
                         server => $s_addr,
                         server_id => $g_servers{$s_addr}->{id},
                         userid => $userid,
-                        realuserid => $realuserid // -1,
+                        realuserid => $realuserid // '',
                         uniqueid => $uniqueid,
                         plain_uniqueid => $plainuniqueid,
                         game => $g_servers{$s_addr}->{game},
@@ -2008,8 +1989,10 @@ sub handleIncoming {
                     $g_servers{$s_addr}->set("update_hostname", "0");
                     &printEvent("SERVER", "Auto-updating hostname is disabled", 1);
                 }
+                if ($g_servers{$s_addr}->{play_game} == CS2()) {
+                    %{$g_servers{$s_addr}->{slot}}=$g_servers{$s_addr}->getSlot();
+                }
                 $g_servers{$s_addr}->get_game_mod_opts();
-                $g_servers{$s_addr}->getSlots() if ($g_servers{$s_addr}->{play_game} == CS2());
             }
 
         }
@@ -2822,11 +2805,32 @@ sub handleIncoming {
                 }
             } elsif ( (like($ev_verb, "STEAM USERID validated") || like($ev_verb, "VALVE USERID validated")) )  {
                 my $realuserid = undef;
+                my ($uniqueid,$steamid,$team,$extra,$trailing);
                 my $isCSGO = ($g_servers{$s_addr}->{play_game} == CSGO());
 
                 if ($g_servers{$s_addr}->{play_game} == CS2()) {
                     $ev_player =~ /^(.*?)<(\d+)><([^<>]*)><([^<>]*)>(?:<([^<>]*)>)?.*$/;
                     $realuserid = $2;
+                    $uniqueid   = $3;
+                    $steamid    = $3;
+                    $team       = $4;
+                    $extra      = $5 // '';
+                    $trailing   = $6;
+                    $uniqueid =~ s!\[U:1:(\d+)\]!'STEAM_0:'.($1 % 2).':'.int($1 / 2)!eg;
+                    $uniqueid =~ s/^STEAM_[0-9]+?\://;
+                    if (defined $realuserid) {
+                        my $new_key = "$realuserid/$uniqueid";
+                        foreach my $old_key (keys %{ $g_servers{$s_addr}->{srv_players} }) {
+                            if ($old_key =~ m{/.*\Q$uniqueid\E$} && $old_key ne $new_key) {
+                                my $player = $g_servers{$s_addr}->{srv_players}->{$old_key};
+                                if ($player->{uniqueid} eq $uniqueid) {
+                                    $g_servers{$s_addr}->{srv_players}->{$old_key}->{realuserid} = $realuserid;
+                                    my $userid = $player->{userid};
+                                    $ev_player =~ s/<\Q$realuserid\E>/<${userid}>/; # rewriting userid with slot or id
+                                }
+                            }
+                        }
+                    }
                 }
 
                 my $playerinfo = &getPlayerInfo($ev_player, $isCSGO ? 1 : 0, undef, $realuserid);
@@ -3340,9 +3344,9 @@ sub handleData
                         $g_servers{$server}->set("num_players_load", 0);
                     });
                 }
-            } else { $g_servers{$server}->set("track_server_timestamp", $ev_daemontime); }            
+            } else { $g_servers{$server}->set("track_server_timestamp", $ev_daemontime); }
 
-            if (($g_servers{$s_addr}->{map} eq "") && ($last_event == 0)) {
+            if (($g_servers{$s_addr}->{map} eq "") && ($last_event <= 0)) {
                 $g_servers{$server}->get_map_async(sub {
                     my ($err, $map) = @_;
                     warn "[get_map_async] failed: $err" if $err && $g_debug > 0;
@@ -3357,14 +3361,16 @@ sub handleData
                     my %status_players = ref($status_ref) eq 'HASH' ? %$status_ref : ();
                     warn "[RCON] Failed to get players: $err" if $err && $g_debug > 0;
                     my %players_temp = %{ $g_servers{$server}->{"srv_players"} };
-                    my $slot = 0;
                     while (my ($pl, $player) = each %players_temp) {
                         my $t = ($g_mode eq "LAN") ? 500 : 250;
                         my $userid   = $player->{userid};
                         my $uniqueid = $player->{uniqueid};
-                        if ( defined $player->{slot} && $player->{slot} ne $player->{UserID} ) {
-                            $g_servers{$server}->{slot}->{"$player->{slot}/$player->{name}"} = $player->{realuserid};
-                            $slot++;
+                        if (defined $status_players{$uniqueid} && defined $status_players{$uniqueid}->{slot}) {
+                            if (exists $g_servers{$s_addr}->{slot}{"$status_players{$uniqueid}->{slot}/$player->{name}"}) {
+                                delete $g_servers{$s_addr}->{slot}{"$status_players{$uniqueid}->{slot}/$player->{name}"};
+                            }
+                            $g_servers{$server}->{"srv_players"}->{$pl}->{realuserid} = $status_players{$uniqueid}->{realuserid};
+                            $userid = $status_players{$uniqueid}->{slot};
                         }
                         if (($ev_daemontime - $player->{timestamp}) > $t) {
                             if (defined($status_players{$uniqueid})) {
@@ -3375,9 +3381,7 @@ sub handleData
                             }
                         }
                     }
-                    if ( !$slot ) {
-                        $g_servers{$server}->{slot} = {}; # Use in CS2 competitive
-                    }
+                    $g_servers{$server}->{slot} = {}; # Use only in CS2 competitive
                 });
             }
             $g_servers{$server}->{next_timeout}=$ev_daemontime+30+rand(30);

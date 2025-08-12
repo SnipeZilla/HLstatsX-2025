@@ -297,7 +297,7 @@ sub find_steamid
     my $server = $self->{server_object}{srv_players} or return;
     for my $player ( values %$server ) {
         next unless defined $player->{userid};
-        if ($player->{userid} == $userid) {
+        if ($player->{userid} == $userid ) {
           return $player->{uniqueid};
         }
     }
@@ -327,10 +327,12 @@ sub getPlayers
     # 7    04:32   24    0     active 786432 64.74.97.164:53449 'snipezilla'
     # slot id name
     # 0:321:"snipezilla"
+    my %userid_to_slot;
     foreach my $line (@lines) {
         # Save 'users' list for later
-        if ($line =~ /^\d+:\d+:/) {
-            push @user_lines, $line;
+        if ($line =~ /^(\d+):(\d+):"([^"]+)"$/) {
+            my ($slot, $userid, $name) = ($1, $2, $3);
+            $userid_to_slot{$userid} = $slot;
             next;
         }
         # 'status'
@@ -351,7 +353,7 @@ sub getPlayers
                       $/x)
         {
 
-            ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+            my ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
             $uniqueid =~ s!\[U:1:(\d+)\]!($1 % 2).':'.int($1 / 2)!eg;
             $uniqueid =~ s/^STEAM_[0-9]+?\://i;
             my $key = ($::g_mode eq "NameTrack") ? $name : ($::g_mode eq "LAN") ? $address : $uniqueid;
@@ -369,28 +371,29 @@ sub getPlayers
             };
 
         } elsif ($line =~ /
-                          (\d+)\s+           # userid      $1
-                          ([\d:]+)\s+        # connected   $2
-                          (\d+)\s+           # ping        $3
-                          (\d+)\s+           # loss        $4
-                          ([A-Za-z]+)\s*     # state       $5
-                          (?:                # optional addr:port
-                              ([^:]+) :      # addr        $6
-                              (\d+) \s+      # port        $7
-                          )?
-                          '(.*?)'            # name        $8
-                          $/x)
+                           (\d+)\s+                               # $1 userid
+                           ([\d:]+?|BOT)\s+                       # $2 connected (mm:ss, hh:mm:ss or BOT)
+                           (\d+)\s+                               # $3 ping
+                           (\d+)\s+                               # $4 loss
+                           ([A-Za-z]+)\s+                         # $5 state
+                           (\d+)\s+                               # $6 extra numeric field
+                           (?:
+                               (\d{1,3}(?:\.\d{1,3}){3}):(\d+)\s+ # $7 addr
+                           )?                                     # $8 port
+                           '(.*?)'
+                           $                                      # $9 name
+                           /x)
         {
   
-            ($userid, $time, $ping, $loss, $state, $address, $port, $name) = ($1, $2, $3, $4, $5, ($6 // ""), ($7 // ""), $8);
-            $uniqueid = $self->find_steamid($userid);
+            ($userid, $time, $ping, $loss, $state, $address, $port, $name) = ($1, $2, $3, $4, $5, ($7 // ""), ($8 // ""), $9);
+            $uniqueid = $self->find_steamid($userid_to_slot{$userid});
             my $key = ($::g_mode eq "NameTrack") ? $name : ($::g_mode eq "LAN") ? $address : $uniqueid;
             next unless $key;
             $players{$key} = {
-                "slot"       => $userid,  # default to userid as slot
+                "slot"       => $userid_to_slot{$userid}, # default to slot or userid
                 "Name"       => $name,
-                "UserID"     => $userid,
-                "realuserid" => -1,
+                "UserID"     => $userid_to_slot{$userid}, # default to slot or userid
+                "realuserid" => $userid,
                 "UniqueID"   => $uniqueid,
                 "Time"       => $time,
                 "Ping"       => $ping,
@@ -403,25 +406,6 @@ sub getPlayers
         }
 
     }
-
-    # Reconcile slot/realuserid for CS2 competitive
-    foreach my $line (@user_lines) {
-        if ($line =~ /^(\d+):(\d+):"(.+)"$/) {
-            my ($slot, $realuserid, $name) = ($1, $2, $3);
-            foreach my $key (keys %players) {
-                my $p = $players{$key};
-                if ($p->{UserID} == $realuserid && $p->{Name} eq $name) {
-                    if (!defined $p->{slot} || $p->{slot} ne $slot) {
-                        $p->{slot} = $slot;
-                        $p->{realuserid} = $realuserid;
-                        $self->{server_object}->{slot}->{"$slot/$name"} = $realuserid;
-                    }
-                    last;
-                }
-            }
-        }
-    }
-
     return %players;
 
 }
