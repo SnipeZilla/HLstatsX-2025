@@ -3381,7 +3381,6 @@ sub handleData
                             }
                         }
                     }
-                    $g_servers{$server}->{slot} = {}; # Use only in CS2 competitive
                 });
             }
             $g_servers{$server}->{next_timeout}=$ev_daemontime+30+rand(30);
