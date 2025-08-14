@@ -2157,12 +2157,12 @@ sub doEvent_Chat
 		if ($g_global_chat > 0 || $g_log_chat > 0) {
 			$hlx_command = 0;
 			my $cmd = $message;
-			if (($cmd =~ /^\/?skill$/i) || ($cmd =~ /^\/?rank$/i) || ($cmd =~ /^\/?points$/i) || ($cmd =~ /^\/?place$/i) ||
+			if (($cmd =~ /^\/?!?skill$/i) || ($cmd =~ /^\/?!?rank$/i) || ($cmd =~ /^\/?!?points$/i) || ($cmd =~ /^\/?place$/i) ||
 				($cmd =~ /^\/?kdratio$/i) || ($cmd =~ /^\/?kdeath$/i) || ($cmd =~ /^\/?kpd$/i) ||
-				($cmd =~ /^\/?session$/i) || ($cmd =~ /^\/?session_data$/i) ||
-				($cmd =~ /^\/?top\d{1,2}?$/i) ||
+				($cmd =~ /^\/?!?session$/i) || ($cmd =~ /^\/?session_data$/i) ||
+				($cmd =~ /^\/?!?top\d{1,2}?$/i) ||
 				($cmd =~ /^\/?statsme$/i) ||
-				($cmd =~ /^\/?next$/i) ||
+				($cmd =~ /^\/?!?next$/i) ||
 				($cmd =~ /^\/?knife$/i) || ($cmd =~ /^\/?usp$/i)       || ($cmd =~ /^\/?glock$/i)     || ($cmd =~ /^\/?deagle$/i)  || 
 				($cmd =~ /^\/?p228$/i)  || ($cmd =~ /^\/?m3$/i)        || ($cmd =~ /^\/?xm1014$/i)    || ($cmd =~ /^\/?mp5navy$/i)     ||
 				($cmd =~ /^\/?tmp$/i)   || ($cmd =~ /^\/?p90$/i)       || ($cmd =~ /^\/?m4a1$/i)      || ($cmd =~ /^\/?ak47$/i)    ||
