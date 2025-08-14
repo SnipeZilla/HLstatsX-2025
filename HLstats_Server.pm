@@ -42,31 +42,6 @@ use Syntax::Keyword::Try;
 
 do "$::opt_libdir/HLstats_GameConstants.plib";
 
-sub getSlot
-{
-    my ($self) = @_;
-    my $status = $self->{rcon_obj}->execute("users", 1);
-    my %slotlist;
-    if (!$status)
-    {
-      return %slotlist;
-    }
-    my @lines = split(/[\r\n]+/, $status);
-    my ($slot, $realuserid, $name);
-
-    foreach my $line (@lines) {
-        if ($line =~ /^(\d+):(\d+):"([^"]+)"$/) {
-            ($slot, $realuserid, $name) = ($1, $2, $3);
-            if ($slot ne $realuserid) {
-                $slotlist{"$slot/$name"} = $realuserid;
-            }
-        }
-    }
-
-    return %slotlist;
-}
-
-
 sub new
 {
     my ($class_name, $serverId, $address, $port, $server_name, $rcon_pass, $game, $publicaddress, $gameengine, $realgame, $maxplayers) = @_;
@@ -583,7 +558,6 @@ sub track_server_load_async {
             my $new_timestamp = time();
 
             my $string = $self->{play_game} == CS2()? $self->dorcon("status_json") : $self->dorcon("stats");
-             
             if (!defined $string || $string eq "") {
                 $self->set("track_server_timestamp", $new_timestamp);
                 $err = "[track_server_load] No RCON response from " . $self->{address};
@@ -658,7 +632,7 @@ sub get_map
 {
     my ($self, $fromupdate) = @_;
 
-    if ($::g_stdin == 0) {
+    if (!defined $::g_stdin || $::g_stdin == 0) {
         if ((time() - $self->{last_check})>120) {
             $self->{last_check} = time();
             &::printNotice("get_rcon_status");
@@ -1515,6 +1489,24 @@ sub updatePlayerCount
     }
 
     $self->flush_player_count();
+}
+
+
+sub getRealuserid
+{
+   my ($self, $uniqueid) = @_;
+    my $result;
+    print "there\n";
+    my $rcon_obj = $self->{rcon_obj};
+    if (($rcon_obj) && ($::g_rcon == 1) && ($self->{rcon} ne ""))
+    {
+        $result = $rcon_obj->getPlayer($uniqueid);
+        print "$result\n";
+    }
+    else
+    {
+        print "Rcon error: No Object available\n";
+    }
 }
 
 1;

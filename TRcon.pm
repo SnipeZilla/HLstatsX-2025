@@ -291,17 +291,42 @@ sub error
 #
 # Parse "status" command output into player information
 #
+# CS2 RCON doesn't send the steamid
 sub find_steamid
 {
-    my ($self, $userid) = @_;
+    my ($self, $userid, $slot) = @_;
     my $server = $self->{server_object}{srv_players} or return;
     for my $player ( values %$server ) {
-        next unless defined $player->{userid};
+        next unless (defined $player->{userid});
         if ($player->{userid} == $userid ) {
-          return $player->{uniqueid};
+            return $player->{uniqueid};
+        } elsif (defined $slot && $userid ne $slot && $player->{userid} == $slot) {
+            return $player->{uniqueid};
         }
     }
     return undef;
+}
+
+# CS2 log is userid or slot
+sub updateSlot
+{
+    my ($self, $players_ref) = @_;
+    my %players = %$players_ref;
+    my $server = "$self->{server_object}->{address}:$self->{server_object}->{port}";
+    foreach my $key (keys %players)
+    {
+        my $p=$players{$key};
+        last unless (defined $p->{slot}); 
+        my $uniqueid = $p->{UniqueID};
+        my $old_key = "$p->{slot}/$uniqueid";
+        my $new_key = "$p->{UserID}/$uniqueid";
+        # transfer old profile to new one:
+        if (exists $::g_servers{$server}->{srv_players}->{$old_key} && $old_key ne $new_key) {
+                $::g_servers{$server}->{srv_players}->{$new_key} = delete $::g_servers{$server}->{srv_players}->{$old_key};
+                $::g_servers{$server}->{srv_players}->{$new_key}->{userid} = $p->{UserID};
+        }
+        $::g_servers{$server}->{srv_players}->{$new_key}->{realuserid} = $p->{realuserid};
+    }
 }
 
 sub getPlayers
@@ -313,7 +338,9 @@ sub getPlayers
 
     my @lines = split(/[\r\n]+/, $status);
     my %players;
-    my @user_lines;
+    my %userid_to_slot;
+    my $mode= $::g_mode // 'at';
+
     # HL2 standard
     # userid name uniqueid connected ping loss state adr
     ##187 ".:[SoV]:.Evil Shadow" STEAM_0:1:6200412 13:48 97 0 active 213.10.196.229:24085
@@ -327,8 +354,8 @@ sub getPlayers
     # 7    04:32   24    0     active 786432 64.74.97.164:53449 'snipezilla'
     # slot id name
     # 0:321:"snipezilla"
-    my %userid_to_slot;
-    foreach my $line (@lines) {
+
+   foreach my $line (@lines) {
         # Save 'users' list for later
         if ($line =~ /^(\d+):(\d+):"([^"]+)"$/) {
             my ($slot, $userid, $name) = ($1, $2, $3);
@@ -336,7 +363,6 @@ sub getPlayers
             next;
         }
         # 'status'
-        my ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port);
         if ($line =~ /
                       ^(?:\#\s*)?     # not for cs2
                       (\d+)\s+        # userid
@@ -356,7 +382,7 @@ sub getPlayers
             my ($userid, $name, $uniqueid, $time, $ping, $loss, $state, $address, $port) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
             $uniqueid =~ s!\[U:1:(\d+)\]!($1 % 2).':'.int($1 / 2)!eg;
             $uniqueid =~ s/^STEAM_[0-9]+?\://i;
-            my $key = ($::g_mode eq "NameTrack") ? $name : ($::g_mode eq "LAN") ? $address : $uniqueid;
+            my $key = ($mode eq "NameTrack") ? $name : ($mode eq "LAN") ? $address : $uniqueid;
             next unless $key;
             $players{$key} = {
                 "Name"       => $name,
@@ -371,28 +397,28 @@ sub getPlayers
             };
 
         } elsif ($line =~ /
-                           (\d+)\s+                               # $1 userid
-                           ([\d:]+?|BOT)\s+                       # $2 connected (mm:ss, hh:mm:ss or BOT)
-                           (\d+)\s+                               # $3 ping
-                           (\d+)\s+                               # $4 loss
-                           ([A-Za-z]+)\s+                         # $5 state
-                           (\d+)\s+                               # $6 extra numeric field
-                           (?:
-                               (\d{1,3}(?:\.\d{1,3}){3}):(\d+)\s+ # $7 addr
-                           )?                                     # $8 port
-                           '(.*?)'
-                           $                                      # $9 name
-                           /x)
+                          (\d+)\s+            # $1 userid
+                          ([\d:]+?|BOT)\s+    # $2 connected 
+                          (\d+)\s+            # $3 ping
+                          (\d+)\s+            # $4 loss
+                          ([A-Za-z]+)\s+      # $5 state
+                          (\d+)\s+            # $6 extra
+                          (?:                 
+                              ([^:]+):        # $7 addr
+                              (\d+)\s+        # $8 port
+                          )?                  
+                          '(.*?)'             # $9 name
+                          $/x)
         {
   
-            ($userid, $time, $ping, $loss, $state, $address, $port, $name) = ($1, $2, $3, $4, $5, ($7 // ""), ($8 // ""), $9);
-            $uniqueid = $self->find_steamid($userid_to_slot{$userid});
-            my $key = ($::g_mode eq "NameTrack") ? $name : ($::g_mode eq "LAN") ? $address : $uniqueid;
+            my ($userid, $time, $ping, $loss, $state, $address, $port, $name) = ($1, $2, $3, $4, $5, ($7 // ""), ($8 // ""), $9);
+            $uniqueid = $self->find_steamid($userid,$userid_to_slot{$userid});
+            my $key = ($mode eq "NameTrack") ? $name : ($mode eq "LAN") ? $address : $uniqueid;
             next unless $key;
             $players{$key} = {
-                "slot"       => $userid_to_slot{$userid}, # default to slot or userid
+                "slot"       => $userid_to_slot{$userid},
                 "Name"       => $name,
-                "UserID"     => $userid_to_slot{$userid}, # default to slot or userid
+                "UserID"     => $userid,
                 "realuserid" => $userid,
                 "UniqueID"   => $uniqueid,
                 "Time"       => $time,
@@ -406,6 +432,9 @@ sub getPlayers
         }
 
     }
+
+    $self->updateSlot(\%players) if ($command eq "users;status" && $mode ne 'at');
+
     return %players;
 
 }

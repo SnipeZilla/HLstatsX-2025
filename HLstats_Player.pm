@@ -894,7 +894,6 @@ sub getInfoString
 	return sprintf("\"%s\" \<P:%d,U:%d,W:%s,T:%s\>", $self->{name}, $self->{playerid}, $self->{userid}, $self->{uniqueid}, $self->{team});
 }
 
-
 sub getAddress
 {
 	my ($self) = @_;
@@ -910,6 +909,9 @@ sub getAddress
 		
 		&::printNotice("rcon_getaddress");
 		my $result = $::g_servers{$s_addr}->rcon_getaddress($self->{uniqueid});
+        if (defined  $result->{realuserid}) {
+            $self->{realuserid} = $result->{realuserid};
+        }
 		if (defined $result->{Address} && $result->{Address} ne "") {
 			$haveAddress = 1;
 			$self->{address}  = $result->{Address};
